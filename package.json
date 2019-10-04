@@ -7,6 +7,7 @@
   "homepage": "https://github.com/apps/changeset-bot",
   "dependencies": {
     "@chadfawcett/probot-serverless-now": "^1.0.0",
+    "human-id": "^1.0.2",
     "probot": "^7.2.0"
   },
   "devDependencies": {
