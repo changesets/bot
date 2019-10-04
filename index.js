@@ -69,8 +69,8 @@ module.exports = app => {
 
       let queryStuff = {
         pull_number: context.payload.number,
-        owner: context.payload.repository.name,
-        repository: context.payload.repository.owner.login
+        repo: context.payload.repository.name,
+        owner: context.payload.repository.owner.login
       };
 
       let addChangesetUrl = `${
