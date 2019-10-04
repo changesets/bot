@@ -64,58 +64,63 @@ module.exports = app => {
   });
 
   app.on(["pull_request.opened", "pull_request.synchronize"], async context => {
-    const params = context.issue();
+    try {
+      const params = context.issue();
 
-    let number = context.payload;
-    let repo = {
-      owner: context.payload.repository.name,
-      repository: context.payload.repository.owner.login
-    };
+      let number = context.payload;
+      let repo = {
+        owner: context.payload.repository.name,
+        repository: context.payload.repository.owner.login
+      };
 
-    let addChangesetUrl = `${
-      context.payload.pull_request.head.repo.html_url
-    }/new/${
-      context.payload.pull_request.head.ref
-    }?filename=.changeset/${humanId({
-      separator: "-",
-      capitalize: false
-    })}.md`;
+      let addChangesetUrl = `${
+        context.payload.pull_request.head.repo.html_url
+      }/new/${
+        context.payload.pull_request.head.ref
+      }?filename=.changeset/${humanId({
+        separator: "-",
+        capitalize: false
+      })}.md`;
 
-    const latestCommitSha = context.payload.pull_request.head.sha;
+      const latestCommitSha = context.payload.pull_request.head.sha;
 
-    const [commentId, hasChangeset] = await Promise.all([
-      // we know the comment won't exist on opened events
-      // ok, well like technically that's wrong
-      // but reducing time is nice here so that
-      // deploying this doesn't cost money
-      context.payload.action === "synchronize"
-        ? getCommentId(context, {
-            issue_number: number,
-            ...repo
-          })
-        : null,
-      getChangesetId(context, {
-        pull_number: number,
-        ...repo
-      })
-    ]);
+      const [commentId, hasChangeset] = await Promise.all([
+        // we know the comment won't exist on opened events
+        // ok, well like technically that's wrong
+        // but reducing time is nice here so that
+        // deploying this doesn't cost money
+        context.payload.action === "synchronize"
+          ? getCommentId(context, {
+              issue_number: number,
+              ...repo
+            })
+          : null,
+        getChangesetId(context, {
+          pull_number: number,
+          ...repo
+        })
+      ]);
 
-    let prComment;
-    if (!hasChangeset) {
-      prComment = context.issue({
-        comment_id: commentId,
-        body: getAbsentMessage(latestCommitSha, addChangesetUrl)
-      });
-    } else {
-      prComment = context.issue({
-        comment_id: commentId,
-        body: getApproveMessage(latestCommitSha, addChangesetUrl)
-      });
+      let prComment;
+      if (!hasChangeset) {
+        prComment = context.issue({
+          comment_id: commentId,
+          body: getAbsentMessage(latestCommitSha, addChangesetUrl)
+        });
+      } else {
+        prComment = context.issue({
+          comment_id: commentId,
+          body: getApproveMessage(latestCommitSha, addChangesetUrl)
+        });
+      }
+
+      if (commentId) {
+        return context.github.issues.updateComment(prComment);
+      }
+      return context.github.issues.createComment(prComment);
+    } catch (err) {
+      console.error(err);
+      throw err;
     }
-
-    if (commentId) {
-      return context.github.issues.updateComment(prComment);
-    }
-    return context.github.issues.createComment(prComment);
   });
 };
