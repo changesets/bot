@@ -1,5 +1,7 @@
 # @changesets/bot
 
+# 2
+
 ## 1.1.5
 
 ### Patch Changes
