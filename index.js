@@ -17,7 +17,7 @@ Merging this PR will not cause any packages to be released. If these changes sho
 
 [Click here to learn what changesets are, and how to add one](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).
 
-`;
+`; 
 
 const getApproveMessage = commitSha => `###  🦋  Changeset is good to go
 
