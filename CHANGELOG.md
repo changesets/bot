@@ -1,5 +1,12 @@
 # @changesets/bot
 
+## 1.2.0
+
+### Minor Changes
+
+- Add a link to create a changeset from the comment
+- Optimise network calls
+
 ## 1.1.5
 
 ### Patch Changes
