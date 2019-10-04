@@ -1,4 +1,4 @@
-import humanId from "human-id";
+const humanId = require("human-id");
 
 const getAbsentMessage = (commitSha, addChangesetUrl) => `###  💥  No Changeset
 
