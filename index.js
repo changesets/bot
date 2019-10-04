@@ -65,7 +65,6 @@ module.exports = app => {
 
   app.on(["pull_request.opened", "pull_request.synchronize"], async context => {
     try {
-      console.log(process.env.NOW_GITHUB_COMMIT_REF);
       let number = context.payload.number;
 
       let repo = {
