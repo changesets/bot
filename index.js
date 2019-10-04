@@ -30,7 +30,10 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 const getCommentId = (context, params) =>
   context.github.issues.listComments(params).then(comments => {
     const changesetBotComment = comments.data.find(
-      comment => comment.user.login === "changeset-bot[bot]"
+      // TODO: find what the current user is in some way or something
+      comment =>
+        comment.user.login === "changeset-bot[bot]" ||
+        comment.user.login === "changesets-test-bot[bot]"
     );
     return changesetBotComment ? changesetBotComment.id : null;
   });
