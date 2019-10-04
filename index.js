@@ -1,13 +1,6 @@
-// let addChangesetUrl = `${
-//   github.context.payload.pull_request!.head.repo.html_url
-// }/new/${
-//   github.context.payload.pull_request!.head.ref
-// }?filename=.changeset/${humanId({
-//   separator: "-",
-//   capitalize: false
-// })}.md`;
+import humanId from "human-id";
 
-const getAbsentMessage = commitSha => `###  💥  No Changeset
+const getAbsentMessage = (commitSha, addChangesetUrl) => `###  💥  No Changeset
 
 Latest commit: ${commitSha}
 
@@ -17,15 +10,24 @@ Merging this PR will not cause any packages to be released. If these changes sho
 
 [Click here to learn what changesets are, and how to add one](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).
 
+[Click here if you're a maintainer who wants to add a changeset to this PR](${addChangesetUrl})
+
 `;
 
-const getApproveMessage = commitSha => `###  🦋  Changeset is good to go
+const getApproveMessage = (
+  commitSha,
+  addChangesetUrl
+) => `###  🦋  Changeset is good to go
 
 Latest commit: ${commitSha}
 
 **We got this.**
 
-Not sure what this means? [Click here  to learn what changesets are](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).`;
+Not sure what this means? [Click here  to learn what changesets are](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).
+
+[Click here if you're a maintainer who wants to add another changeset to this PR](${addChangesetUrl})
+
+`;
 
 const getCommentId = (context, params) =>
   context.github.issues.listComments(params).then(comments => {
@@ -64,22 +66,50 @@ module.exports = app => {
   app.on(["pull_request.opened", "pull_request.synchronize"], async context => {
     const params = context.issue();
 
-    console.log(JSON.stringify(context.payload));
+    let number = context.payload;
+    let repo = {
+      owner: context.payload.repository.name,
+      repository: context.payload.repository.owner.login
+    };
 
-    const commentId = await getCommentId(context, params);
-    const hasChangeset = await getChangesetId(context, params);
-    const latestCommit = await getLatestCommit(context, params);
+    let addChangesetUrl = `${
+      context.payload.pull_request.head.repo.html_url
+    }/new/${
+      context.payload.pull_request.head.ref
+    }?filename=.changeset/${humanId({
+      separator: "-",
+      capitalize: false
+    })}.md`;
+
+    const latestCommitSha = context.payload.pull_request.head.sha;
+
+    const [commentId, hasChangeset] = await Promise.all([
+      // we know the comment won't exist on opened events
+      // ok, well like technically that's wrong
+      // but reducing time is nice here so that
+      // deploying this doesn't cost money
+      context.payload.action === "synchronize"
+        ? getCommentId(context, {
+            issue_number: number,
+            ...repo
+          })
+        : null,
+      getChangesetId(context, {
+        pull_number: number,
+        ...repo
+      })
+    ]);
 
     let prComment;
     if (!hasChangeset) {
       prComment = context.issue({
         comment_id: commentId,
-        body: getAbsentMessage(latestCommit.sha)
+        body: getAbsentMessage(latestCommitSha, addChangesetUrl)
       });
     } else {
       prComment = context.issue({
         comment_id: commentId,
-        body: getApproveMessage(latestCommit.sha)
+        body: getApproveMessage(latestCommitSha, addChangesetUrl)
       });
     }
 
