@@ -64,7 +64,7 @@ module.exports = app => {
   app.on(["pull_request.opened", "pull_request.synchronize"], async context => {
     const params = context.issue();
 
-    console.log(params);
+    console.log(context.payload);
 
     const commentId = await getCommentId(context, params);
     const hasChangeset = await getChangesetId(context, params);
