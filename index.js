@@ -30,7 +30,7 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 `;
 
 const getCommentId = (context, params) =>
-  context.github.issues.listComments(params).then(comments => {
+  context.github.pullRequests.listComments(params).then(comments => {
     const changesetBotComment = comments.data.find(
       // TODO: find what the current user is in some way or something
       comment =>
@@ -67,8 +67,8 @@ module.exports = app => {
     try {
       const params = context.issue();
 
-      let number = context.payload;
-      let repo = {
+      let queryStuff = {
+        pull_number: context.payload.number,
         owner: context.payload.repository.name,
         repository: context.payload.repository.owner.login
       };
@@ -90,15 +90,9 @@ module.exports = app => {
         // but reducing time is nice here so that
         // deploying this doesn't cost money
         context.payload.action === "synchronize"
-          ? getCommentId(context, {
-              issue_number: number,
-              ...repo
-            })
+          ? getCommentId(context, queryStuff)
           : null,
-        getChangesetId(context, {
-          pull_number: number,
-          ...repo
-        })
+        getChangesetId(context, queryStuff)
       ]);
 
       let prComment;
