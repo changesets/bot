@@ -1,0 +1,16 @@
+{
+  "action": "synchronize",
+  "number": 1,
+  "pull_request": {
+    "number": 1,
+    "user": {
+      "login": "pyu"
+    }
+  },
+  "repository": {
+    "name": "testing-things",
+    "owner": {
+      "login": "pyu"
+    }
+  }
+}
