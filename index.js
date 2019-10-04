@@ -30,7 +30,7 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 `;
 
 const getCommentId = (context, params) =>
-  context.github.pullRequests.listComments(params).then(comments => {
+  context.github.issues.listComments(params).then(comments => {
     const changesetBotComment = comments.data.find(
       // TODO: find what the current user is in some way or something
       comment =>
@@ -67,8 +67,9 @@ module.exports = app => {
     try {
       const params = context.issue();
 
-      let queryStuff = {
-        pull_number: context.payload.number,
+      let number = context.payload.number;
+
+      let repo = {
         repo: context.payload.repository.name,
         owner: context.payload.repository.owner.login
       };
@@ -90,23 +91,19 @@ module.exports = app => {
         // but reducing time is nice here so that
         // deploying this doesn't cost money
         context.payload.action === "synchronize"
-          ? getCommentId(context, queryStuff)
+          ? getCommentId(context, { ...repo, issue_number: number })
           : null,
-        getChangesetId(context, queryStuff)
+        getChangesetId(context, { ...repo, pull_number: number })
       ]);
 
-      let prComment;
-      if (!hasChangeset) {
-        prComment = context.issue({
-          comment_id: commentId,
-          body: getAbsentMessage(latestCommitSha, addChangesetUrl)
-        });
-      } else {
-        prComment = context.issue({
-          comment_id: commentId,
-          body: getApproveMessage(latestCommitSha, addChangesetUrl)
-        });
-      }
+      let prComment = {
+        ...repo,
+        comment_id: commentId,
+        issue_number: number,
+        body: hasChangeset
+          ? getApproveMessage(latestCommitSha, addChangesetUrl)
+          : getAbsentMessage(latestCommitSha, addChangesetUrl)
+      };
 
       if (commentId) {
         return context.github.issues.updateComment(prComment);
