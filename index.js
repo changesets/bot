@@ -1,3 +1,12 @@
+// let addChangesetUrl = `${
+//   github.context.payload.pull_request!.head.repo.html_url
+// }/new/${
+//   github.context.payload.pull_request!.head.ref
+// }?filename=.changeset/${humanId({
+//   separator: "-",
+//   capitalize: false
+// })}.md`;
+
 const getAbsentMessage = commitSha => `###  💥  No Changeset
 
 Latest commit: ${commitSha}
