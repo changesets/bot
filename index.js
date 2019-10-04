@@ -65,8 +65,6 @@ module.exports = app => {
 
   app.on(["pull_request.opened", "pull_request.synchronize"], async context => {
     try {
-      const params = context.issue();
-
       let number = context.payload.number;
 
       let repo = {
