@@ -1,12 +1,3 @@
-// let addChangesetUrl = `${
-//   github.context.payload.pull_request!.head.repo.html_url
-// }/new/${
-//   github.context.payload.pull_request!.head.ref
-// }?filename=.changeset/${humanId({
-//   separator: "-",
-//   capitalize: false
-// })}.md`;
-
 const getAbsentMessage = commitSha => `###  💥  No Changeset
 
 Latest commit: ${commitSha}
@@ -60,6 +51,8 @@ module.exports = app => {
 
   app.on(["pull_request.opened", "pull_request.synchronize"], async context => {
     const params = context.issue();
+
+    console.log(params);
 
     const commentId = await getCommentId(context, params);
     const hasChangeset = await getChangesetId(context, params);
