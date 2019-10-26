@@ -6,6 +6,7 @@ const changesetBot = require('.');
 
 const pullRequestOpen = require('./test/fixtures/pull_request.opened');
 const pullRequestSynchronize = require('./test/fixtures/pull_request.synchronize');
+const releasePullRequestOpen = require('./test/fixtures/release_pull_request.opened');
 
 nock.disableNetConnect();
 
@@ -102,11 +103,11 @@ describe('changeset-bot', () => {
       .post('/repos/pyu/testing-things/issues/1/comments', ({ body }) => {
         expect(body).toEqual(outdent`
           ###  🦋  Changeset is good to go
-      
+
           Latest commit: ABCDE
-      
+
           **We got this.**
-      
+
           Not sure what this means? [Click here  to learn what changesets are](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).`);
         return true;
       })
@@ -137,11 +138,11 @@ describe('changeset-bot', () => {
           ###  💥  No Changeset
 
           Latest commit: ABCDE
-          
+
           Merging this PR will not cause any packages to be released. If these changes should not cause updates to packages in this repo, this is fine 🙂
-          
+
           **If these changes should be published to npm, you need to add a changeset.**
-          
+
           [Click here to learn what changesets are, and how to add one](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).`);
         return true;
       })
@@ -150,6 +151,19 @@ describe('changeset-bot', () => {
     await probot.receive({
       name: 'pull_request',
       payload: pullRequestOpen,
+    });
+  });
+
+  it("shouldn't add a comment to a release pull request", async () => {
+    nock('https://api.github.com')
+      .reply(() => {
+        // shouldn't reach this, but if it does - let it fail
+        expect(true).toBe(false)
+      });
+
+    await probot.receive({
+      name: 'pull_request',
+      payload: releasePullRequestOpen,
     });
   });
 });
