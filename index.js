@@ -64,7 +64,7 @@ module.exports = app => {
   });
 
   app.on(["pull_request.opened", "pull_request.synchronize"], async context => {
-    if (context.payload.pull_request.head.ref === 'changeset-release') {
+    if (context.payload.pull_request.head.ref.startsWith("changeset-release")) {
       return;
     }
 
