@@ -33,7 +33,7 @@ const newChangesetTemplate = encodeURIComponent(`---
 "@fake-scope/fake-pkg": patch
 ---
 
-Update the package info above to the chagnes you want, and write your description here. You can add a second package as a second line.
+Update the package info above to the changes you want, and write your description here. You can add more packages on new lines.
 `);
 
 const getCommentId = (context, params) =>
