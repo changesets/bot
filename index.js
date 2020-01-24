@@ -8,7 +8,7 @@ Merging this PR will not cause any packages to be released. If these changes sho
 
 **If these changes should be published to npm, you need to add a changeset.**
 
-[Click here to learn what changesets are, and how to add one](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).
+[Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/master/docs/adding-a-changeset.md).
 
 [Click here if you're a maintainer who wants to add a changeset to this PR](${addChangesetUrl})
 
@@ -23,11 +23,18 @@ Latest commit: ${commitSha}
 
 **We got this.**
 
-Not sure what this means? [Click here  to learn what changesets are](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).
+Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/master/docs/adding-a-changeset.md).
 
 [Click here if you're a maintainer who wants to add another changeset to this PR](${addChangesetUrl})
 
 `;
+
+const newChangesetTemplate = encodeURIComponent(`---
+"@fake-scope/fake-pkg": patch
+---
+
+Update the package info above to the chagnes you want, and write your description here. You can add a second package as a second line.
+`);
 
 const getCommentId = (context, params) =>
   context.github.issues.listComments(params).then(comments => {
@@ -83,7 +90,7 @@ module.exports = app => {
       }?filename=.changeset/${humanId({
         separator: "-",
         capitalize: false
-      })}.md`;
+      })}.md&value=${newChangesetTemplate}`;
 
       const latestCommitSha = context.payload.pull_request.head.sha;
 
