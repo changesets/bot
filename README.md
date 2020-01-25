@@ -1,6 +1,6 @@
 # changeset-bot
 
-> A GitHub App built with [Probot](https://github.com/probot/probot) that Bot to detect [changesets](https://github.com/atlassian/changesets) in PRs
+> A GitHub App built with [Probot](https://github.com/probot/probot) to detect [changesets](https://github.com/atlassian/changesets) in PRs
 
 ## Install the bot at https://github.com/apps/changeset-bot
 
