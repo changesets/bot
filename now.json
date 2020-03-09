@@ -2,9 +2,9 @@
   "version": 2,
   "scope": "changesets",
   "env": {
-    "APP_ID": "@prod-app-id",
-    "WEBHOOK_SECRET": "@prod-webhook-secret",
-    "PRIVATE_KEY": "@prod-private-key-base64-encoded"
+    "APP_ID": "@dev-app-id",
+    "WEBHOOK_SECRET": "@dev-webhook-secret",
+    "PRIVATE_KEY": "@dev-private-key-base64-encoded"
   },
   "builds": [{ "src": "now.js", "use": "@now/node" }],
   "routes": [{ "src": "/", "dest": "/now.js" }]
