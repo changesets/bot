@@ -36,12 +36,12 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 
 `;
 
-const getNewChangesetTemplate = (changedPackages: string[]) =>
+const getNewChangesetTemplate = (changedPackages: string[], title: string) =>
   encodeURIComponent(`---
 ${changedPackages.map(x => `"${x}": patch`).join("\n")}
 ---
 
-Update the package info above to the changes you want, and write your description here. You can add more packages on new lines.
+${title}
 `);
 
 type PRContext = Context<Webhooks.WebhookPayloadPullRequest>;
@@ -153,7 +153,10 @@ export default (app: Application) => {
         }?filename=.changeset/${humanId({
           separator: "-",
           capitalize: false
-        })}.md&value=${getNewChangesetTemplate(changedPackages)}`;
+        })}.md&value=${getNewChangesetTemplate(
+          changedPackages,
+          context.payload.pull_request.title
+        )}`;
 
         let prComment = {
           ...repo,
