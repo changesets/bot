@@ -3,6 +3,7 @@ import micromatch from "micromatch";
 import { Workspace } from "@changesets/types";
 import { Octokit } from "probot";
 import fetch from "node-fetch";
+import { safeLoad } from "js-yaml";
 
 type Sha = string & { ___sha: string };
 
@@ -25,7 +26,7 @@ export let getChangedPackages = async ({
     `x-access-token:${installationToken}`
   ).toString("base64");
 
-  function fetchJsonFile(path: string) {
+  function fetchFile(path: string) {
     return fetch(
       `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`,
       {
@@ -33,7 +34,15 @@ export let getChangedPackages = async ({
           Authorization: `Basic ${encodedCredentials}`
         }
       }
-    ).then(x => x.json());
+    );
+  }
+
+  function fetchJsonFile(path: string) {
+    return fetchFile(path).then(x => x.json());
+  }
+
+  function fetchTextFile(path: string) {
+    return fetchFile(path).then(x => x.text());
   }
 
   // I'm assuming that a workspace will only be requested once per call to getReleasePlanFromGitHub
@@ -58,27 +67,41 @@ export let getChangedPackages = async ({
 
   let itemsByDirPath = new Map<string, { path: string; sha: Sha }>();
   let potentialWorkspaceDirectories: string[] = [];
+  let isPnpm = false;
   for (let item of tree.data.tree) {
     if (item.path.endsWith("/package.json")) {
       let dirPath = nodePath.dirname(item.path);
       potentialWorkspaceDirectories.push(dirPath);
       itemsByDirPath.set(dirPath, item);
     }
+    if (item.path === "pnpm-workspace.yaml") {
+      isPnpm = true;
+    }
   }
   let rootPackageJsonContent = await rootPackageJsonContentsPromise;
   let globs;
-  if (rootPackageJsonContent.workspaces) {
-    if (!Array.isArray(rootPackageJsonContent.workspaces)) {
-      globs = rootPackageJsonContent.workspaces.packages;
-    } else {
-      globs = rootPackageJsonContent.workspaces;
+
+  if (isPnpm) {
+    globs = safeLoad(await fetchTextFile("pnpm-workspace.yaml")).packages;
+  } else {
+    if (rootPackageJsonContent.workspaces) {
+      if (!Array.isArray(rootPackageJsonContent.workspaces)) {
+        globs = rootPackageJsonContent.workspaces.packages;
+      } else {
+        globs = rootPackageJsonContent.workspaces;
+      }
+    } else if (
+      rootPackageJsonContent.bolt &&
+      rootPackageJsonContent.bolt.workspaces
+    ) {
+      globs = rootPackageJsonContent.bolt.workspaces;
     }
-  } else if (
-    rootPackageJsonContent.bolt &&
-    rootPackageJsonContent.bolt.workspaces
-  ) {
-    globs = rootPackageJsonContent.bolt.workspaces;
   }
+
+  if (!(Array.isArray(globs) && globs.every(x => typeof x === "string"))) {
+    throw new Error("globs are not valid");
+  }
+
   let workspaces: Workspace[] = [];
   let rootWorkspace = {
     dir: "/",
