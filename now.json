@@ -7,5 +7,5 @@
     "PRIVATE_KEY": "@dev-private-key-base64-encoded"
   },
   "builds": [{ "src": "now.js", "use": "@now/node" }],
-  "routes": [{ "src": "/", "dest": "/now.ts" }]
+  "routes": [{ "src": "/", "dest": "/now.js" }]
 }
