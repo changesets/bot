@@ -1,7 +1,7 @@
 // inlined from https://unpkg.com/@chadfawcett/probot-serverless-now@1.0.0/index.js
 const { createProbot } = require("probot");
 const { findPrivateKey } = require("probot/lib/private-key");
-const appFn = require("./");
+const appFn = require("./").default;
 
 const options = {
   id: process.env.APP_ID,
