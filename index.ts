@@ -145,7 +145,7 @@ export default (app: Application) => {
             })
           }).catch(err => {
             console.error(err);
-            return ["@fake-scope/fake-pkg"];
+            return { changedPackages: ["@fake-scope/fake-pkg"] };
           })
         ]);
 
