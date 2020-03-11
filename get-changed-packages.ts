@@ -84,6 +84,8 @@ export let getChangedPackages = async ({
   let itemsByDirPath = new Map<string, { path: string; sha: Sha }>();
   let potentialWorkspaceDirectories: string[] = [];
   let isPnpm = false;
+  let changedFiles = await changedFilesPromise;
+
   for (let item of tree.data.tree) {
     if (item.path.endsWith("/package.json")) {
       let dirPath = nodePath.dirname(item.path);
@@ -96,7 +98,8 @@ export let getChangedPackages = async ({
     } else if (
       item.path !== ".changeset/README.md" &&
       item.path.startsWith(".changeset") &&
-      item.path.endsWith(".md")
+      item.path.endsWith(".md") &&
+      changedFiles.includes(item.path)
     ) {
       let res = /\.changeset\/([^\.]+)\.md/.exec(item.path);
       if (!res) {
@@ -183,8 +186,6 @@ export let getChangedPackages = async ({
     await configPromise,
     await preStatePromise
   );
-
-  let changedFiles = await changedFilesPromise;
 
   return {
     changedPackages: packages.packages
