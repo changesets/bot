@@ -4,6 +4,25 @@ import { Application, Context, Octokit } from "probot";
 import Webhooks from "@octokit/webhooks";
 import { getChangedPackages } from "./get-changed-packages";
 import { ReleasePlan } from "@changesets/types";
+import markdownTable from "markdown-table";
+
+const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
+  if (!releasePlan) return "";
+  return markdownTable([
+    ["Name", "Type", "New Version"],
+    ...releasePlan.releases.map(x => {
+      return [
+        x.name,
+        {
+          major: "Major",
+          minor: "Minor",
+          patch: "Patch"
+        }[x.type],
+        x.newVersion
+      ];
+    })
+  ]);
+};
 
 const getAbsentMessage = (
   commitSha: string,
@@ -17,11 +36,7 @@ Merging this PR will not cause any packages to be released. If these changes sho
 
 **If these changes should be published to npm, you need to add a changeset.**
 
-${
-  releasePlan
-    ? `\`\`\`json\n${JSON.stringify(releasePlan, null, 2)}\n\`\`\``
-    : ""
-}
+${getReleasePlanMessage(releasePlan)}
 
 [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/master/docs/adding-a-changeset.md).
 
@@ -39,12 +54,7 @@ Latest commit: ${commitSha}
 
 **We got this.**
 
-
-${
-  releasePlan
-    ? `\`\`\`json\n${JSON.stringify(releasePlan, null, 2)}\n\`\`\``
-    : ""
-}
+${getReleasePlanMessage(releasePlan)}
 
 Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/master/docs/adding-a-changeset.md).
 
