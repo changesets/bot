@@ -3,10 +3,12 @@ import humanId from "human-id";
 import { Application, Context, Octokit } from "probot";
 import Webhooks from "@octokit/webhooks";
 import { getChangedPackages } from "./get-changed-packages";
+import { ReleasePlan } from "@changesets/types";
 
 const getAbsentMessage = (
   commitSha: string,
-  addChangesetUrl: string
+  addChangesetUrl: string,
+  releasePlan: ReleasePlan | null
 ) => `###  💥  No Changeset
 
 Latest commit: ${commitSha}
@@ -14,6 +16,12 @@ Latest commit: ${commitSha}
 Merging this PR will not cause any packages to be released. If these changes should not cause updates to packages in this repo, this is fine 🙂
 
 **If these changes should be published to npm, you need to add a changeset.**
+
+${
+  releasePlan
+    ? `\`\`\`json\n${JSON.stringify(releasePlan, null, 2)}\n\`\`\``
+    : ""
+}
 
 [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/master/docs/adding-a-changeset.md).
 
@@ -23,12 +31,20 @@ Merging this PR will not cause any packages to be released. If these changes sho
 
 const getApproveMessage = (
   commitSha: string,
-  addChangesetUrl: string
+  addChangesetUrl: string,
+  releasePlan: ReleasePlan | null
 ) => `###  🦋  Changeset is good to go
 
 Latest commit: ${commitSha}
 
 **We got this.**
+
+
+${
+  releasePlan
+    ? `\`\`\`json\n${JSON.stringify(releasePlan, null, 2)}\n\`\`\``
+    : ""
+}
 
 Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/master/docs/adding-a-changeset.md).
 
@@ -119,10 +135,7 @@ export default (app: Application) => {
         const [
           commentId,
           hasChangeset,
-          {
-            // @ts-ignore
-            changedPackages
-          }
+          { changedPackages, releasePlan }
         ] = await Promise.all([
           // we know the comment won't exist on opened events
           // ok, well like technically that's wrong
@@ -143,11 +156,8 @@ export default (app: Application) => {
             installationToken: await app.app.getInstallationAccessToken({
               installationId: (context.payload as any).installation.id
             })
-          }).catch(err => {
-            console.error(err);
-            return { changedPackages: ["@fake-scope/fake-pkg"] };
           })
-        ]);
+        ] as const);
 
         let addChangesetUrl = `${
           context.payload.pull_request.head.repo.html_url
@@ -166,8 +176,8 @@ export default (app: Application) => {
           comment_id: commentId,
           issue_number: number,
           body: hasChangeset
-            ? getApproveMessage(latestCommitSha, addChangesetUrl)
-            : getAbsentMessage(latestCommitSha, addChangesetUrl)
+            ? getApproveMessage(latestCommitSha, addChangesetUrl, releasePlan)
+            : getAbsentMessage(latestCommitSha, addChangesetUrl, releasePlan)
         };
 
         if (prComment.comment_id != null) {
