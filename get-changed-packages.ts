@@ -41,11 +41,11 @@ export let getChangedPackages = async ({
     }
 
     function fetchJsonFile(path: string) {
-      return fetchFile(path).then(x => x.json());
+      return fetchFile(path).then(x => x.json()).catch(err => err)
     }
 
     function fetchTextFile(path: string) {
-      return fetchFile(path).then(x => x.text());
+      return fetchFile(path).then(x => x.text()).catch(err => err);
     }
 
     async function getPackage(pkgPath: string) {
