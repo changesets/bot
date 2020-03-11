@@ -156,6 +156,12 @@ export default (app: Application) => {
             installationToken: await app.app.getInstallationAccessToken({
               installationId: (context.payload as any).installation.id
             })
+          }).catch(err => {
+            console.error(err);
+            return {
+              changedPackages: ["@fake-scope/fake-pkg"],
+              releasePlan: null
+            };
           })
         ] as const);
 

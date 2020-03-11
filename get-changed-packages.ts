@@ -25,7 +25,6 @@ export let getChangedPackages = async ({
   octokit: Octokit;
   installationToken: string;
 }) => {
-  try {
     let encodedCredentials = Buffer.from(
       `x-access-token:${installationToken}`
     ).toString("base64");
@@ -185,12 +184,6 @@ export let getChangedPackages = async ({
         )
         .map(x => x.packageJson.name),
       releasePlan
-    };
-  } catch (err) {
-    console.error(err);
-    return {
-      changedPackages: ["@fake-scope/fake-pkg"],
-      releasePlan: null
     };
   }
 };
