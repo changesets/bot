@@ -8,7 +8,7 @@ import markdownTable from "markdown-table";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
-  return markdownTable([
+  let table = markdownTable([
     ["Name", "Type", "New Version"],
     ...releasePlan.releases.map(x => {
       return [
@@ -22,6 +22,16 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
       ];
     })
   ]);
+
+  return `<summary>When this PR is merged, ${releasePlan.releases.length} packages will be released
+  
+  <details>
+  
+  ${table}
+  
+  </details>
+  
+  </summary>`;
 };
 
 const getAbsentMessage = (
