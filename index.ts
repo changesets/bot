@@ -8,8 +8,9 @@ import markdownTable from "markdown-table";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
+
   let table = markdownTable([
-    ["Name", "Type", "New Version"],
+    ["Name", "Type"],
     ...releasePlan.releases.map(x => {
       return [
         x.name,
@@ -17,17 +18,28 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
           major: "Major",
           minor: "Minor",
           patch: "Patch"
-        }[x.type],
-        x.newVersion
+        }[x.type]
       ];
     })
   ]);
 
-  return `<summary>When this PR is merged, ${releasePlan.releases.length} packages will be released
+  return `<summary>This PR includes ${
+    releasePlan.changesets.length
+      ? `changesets to release ${
+          releasePlan.releases.length === 1
+            ? "1 package"
+            : `${releasePlan.releases.length} packages`
+        }`
+      : "no changesets"
+  }
   
   <details>
   
-  ${table}
+  ${
+    releasePlan.releases.length
+      ? table
+      : "When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types"
+  }
   
   </details>
   
