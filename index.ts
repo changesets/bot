@@ -23,7 +23,7 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
     })
   ]);
 
-  return `<summary>This PR includes ${
+  return `<details><summary>This PR includes ${
     releasePlan.changesets.length
       ? `changesets to release ${
           releasePlan.releases.length === 1
@@ -31,19 +31,15 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
             : `${releasePlan.releases.length} packages`
         }`
       : "no changesets"
-  }
-  
-  <details>
-  
+  }</summary
+
   ${
     releasePlan.releases.length
       ? table
       : "When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types"
   }
   
-  </details>
-  
-  </summary>`;
+</details>`;
 };
 
 const getAbsentMessage = (
