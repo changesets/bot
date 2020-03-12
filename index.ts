@@ -31,14 +31,14 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
             : `${releasePlan.releases.length} packages`
         }`
       : "no changesets"
-  }</summary
+  }</summary>
 
   ${
     releasePlan.releases.length
       ? table
       : "When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types"
   }
-  
+
 </details>`;
 };
 
