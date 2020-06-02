@@ -46,13 +46,11 @@ const getAbsentMessage = (
   commitSha: string,
   addChangesetUrl: string,
   releasePlan: ReleasePlan | null
-) => `###  💥  No Changeset
+) => `###  ⚠️  No Changeset found
 
 Latest commit: ${commitSha}
 
-Merging this PR will not cause any packages to be released. If these changes should not cause updates to packages in this repo, this is fine 🙂
-
-**If these changes should be published to npm, you need to add a changeset.**
+Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
 
 ${getReleasePlanMessage(releasePlan)}
 
@@ -66,11 +64,11 @@ const getApproveMessage = (
   commitSha: string,
   addChangesetUrl: string,
   releasePlan: ReleasePlan | null
-) => `###  🦋  Changeset is good to go
+) => `###  🦋  Changeset detected
 
 Latest commit: ${commitSha}
 
-**We got this.**
+**The changes in this PR will be included in the next version bump.**
 
 ${getReleasePlanMessage(releasePlan)}
 
