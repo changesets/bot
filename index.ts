@@ -3,7 +3,7 @@ import humanId from "human-id";
 import { Application, Context, Octokit } from "probot";
 import Webhooks from "@octokit/webhooks";
 import { getChangedPackages } from "./get-changed-packages";
-import { ReleasePlan } from "@changesets/types";
+import { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
 import markdownTable from "markdown-table";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
@@ -11,16 +11,18 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
 
   let table = markdownTable([
     ["Name", "Type"],
-    ...releasePlan.releases.map(x => {
-      return [
-        x.name,
-        {
-          major: "Major",
-          minor: "Minor",
-          patch: "Patch"
-        }[x.type]
-      ];
-    })
+    ...releasePlan.releases
+      .filter((x): x is ComprehensiveRelease & { type: Exclude<VersionType, 'none'>} => x.type !== 'none')
+      .map(x => {
+        return [
+          x.name,
+          {
+            major: "Major",
+            minor: "Minor",
+            patch: "Patch"
+          }[x.type]
+        ];
+      })
   ]);
 
   return `<details><summary>This PR includes ${
