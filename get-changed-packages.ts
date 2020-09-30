@@ -5,7 +5,8 @@ import fetch from "node-fetch";
 import { safeLoad } from "js-yaml";
 import { Packages, Tool } from "@manypkg/get-packages";
 import assembleReleasePlan from "@changesets/assemble-release-plan";
-import { PreState, Config, NewChangeset } from "@changesets/types";
+import { parse as parseConfig } from "@changesets/config";
+import { PreState, NewChangeset } from "@changesets/types";
 import parseChangeset from "@changesets/parse";
 
 type Sha = string & { ___sha: string };
@@ -16,7 +17,7 @@ export let getChangedPackages = async ({
   ref,
   changedFiles: changedFilesPromise,
   octokit,
-  installationToken
+  installationToken,
 }: {
   owner: string;
   repo: string;
@@ -35,16 +36,16 @@ export let getChangedPackages = async ({
       `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`,
       {
         headers: {
-          Authorization: `Basic ${encodedCredentials}`
-        }
+          Authorization: `Basic ${encodedCredentials}`,
+        },
       }
     );
   }
 
   function fetchJsonFile(path: string) {
     return fetchFile(path)
-      .then(x => x.json())
-      .catch(err => {
+      .then((x) => x.json())
+      .catch((err) => {
         hasErrored = true;
         console.error(err);
         return {};
@@ -53,8 +54,8 @@ export let getChangedPackages = async ({
 
   function fetchTextFile(path: string) {
     return fetchFile(path)
-      .then(x => x.text())
-      .catch(err => {
+      .then((x) => x.text())
+      .catch((err) => {
         hasErrored = true;
         console.error(err);
         return "";
@@ -65,18 +66,18 @@ export let getChangedPackages = async ({
     let jsonContent = await fetchJsonFile(pkgPath + "/package.json");
     return {
       packageJson: jsonContent,
-      dir: pkgPath
+      dir: pkgPath,
     };
   }
 
   let rootPackageJsonContentsPromise = fetchJsonFile("package.json");
-  let configPromise: Promise<Config> = fetchJsonFile(".changeset/config.json");
+  let configPromise: Promise<any> = fetchJsonFile(".changeset/config.json");
 
   let tree = await octokit.git.getTree({
     owner,
     repo,
     recursive: "1",
-    tree_sha: ref
+    tree_sha: ref,
   });
 
   let preStatePromise: Promise<PreState> | undefined;
@@ -107,7 +108,7 @@ export let getChangedPackages = async ({
       }
       let id = res[1];
       changesetPromises.push(
-        fetchTextFile(item.path).then(text => {
+        fetchTextFile(item.path).then((text) => {
           return { ...parseChangeset(text), id };
         })
       );
@@ -123,7 +124,7 @@ export let getChangedPackages = async ({
   if (isPnpm) {
     tool = {
       tool: "pnpm",
-      globs: safeLoad(await fetchTextFile("pnpm-workspace.yaml")).packages
+      globs: safeLoad(await fetchTextFile("pnpm-workspace.yaml")).packages,
     };
   } else {
     let rootPackageJsonContent = await rootPackageJsonContentsPromise;
@@ -132,12 +133,12 @@ export let getChangedPackages = async ({
       if (!Array.isArray(rootPackageJsonContent.workspaces)) {
         tool = {
           tool: "yarn",
-          globs: rootPackageJsonContent.workspaces.packages
+          globs: rootPackageJsonContent.workspaces.packages,
         };
       } else {
         tool = {
           tool: "yarn",
-          globs: rootPackageJsonContent.workspaces
+          globs: rootPackageJsonContent.workspaces,
         };
       }
     } else if (
@@ -146,14 +147,17 @@ export let getChangedPackages = async ({
     ) {
       tool = {
         tool: "bolt",
-        globs: rootPackageJsonContent.bolt.workspaces
+        globs: rootPackageJsonContent.bolt.workspaces,
       };
     }
   }
 
   if (
     !tool ||
-    !(Array.isArray(tool.globs) && tool.globs.every(x => typeof x === "string"))
+    !(
+      Array.isArray(tool.globs) &&
+      tool.globs.every((x) => typeof x === "string")
+    )
   ) {
     throw new Error("globs are not valid");
   }
@@ -163,16 +167,18 @@ export let getChangedPackages = async ({
   let packages: Packages = {
     root: {
       dir: "/",
-      packageJson: rootPackageJsonContent
+      packageJson: rootPackageJsonContent,
     },
     tool: tool.tool,
-    packages: []
+    packages: [],
   };
 
   if (tool) {
     let matches = micromatch(potentialWorkspaceDirectories, tool.globs);
 
-    packages.packages = await Promise.all(matches.map(dir => getPackage(dir)));
+    packages.packages = await Promise.all(
+      matches.map((dir) => getPackage(dir))
+    );
   } else {
     packages.packages.push(packages.root);
   }
@@ -183,16 +189,16 @@ export let getChangedPackages = async ({
   const releasePlan = assembleReleasePlan(
     await Promise.all(changesetPromises),
     packages,
-    await configPromise,
+    await configPromise.then((rawConfig) => parseConfig(rawConfig, packages)),
     await preStatePromise
   );
 
   return {
     changedPackages: packages.packages
-      .filter(pkg =>
-        changedFiles.some(changedFile => changedFile.includes(pkg.dir))
+      .filter((pkg) =>
+        changedFiles.some((changedFile) => changedFile.includes(pkg.dir))
       )
-      .map(x => x.packageJson.name),
-    releasePlan
+      .map((x) => x.packageJson.name),
+    releasePlan,
   };
 };
