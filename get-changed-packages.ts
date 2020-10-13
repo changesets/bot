@@ -1,6 +1,6 @@
 import nodePath from "path";
 import micromatch from "micromatch";
-import { Octokit } from "probot";
+import { ProbotOctokit } from "probot";
 import fetch from "node-fetch";
 import { safeLoad } from "js-yaml";
 import { Packages, Tool } from "@manypkg/get-packages";
@@ -23,7 +23,7 @@ export let getChangedPackages = async ({
   repo: string;
   ref: string;
   changedFiles: string[] | Promise<string[]>;
-  octokit: Octokit;
+  octokit: InstanceType<typeof ProbotOctokit>;
   installationToken: string;
 }) => {
   let hasErrored = false;
@@ -82,7 +82,6 @@ export let getChangedPackages = async ({
 
   let preStatePromise: Promise<PreState> | undefined;
   let changesetPromises: Promise<NewChangeset>[] = [];
-  let itemsByDirPath = new Map<string, { path: string; sha: Sha }>();
   let potentialWorkspaceDirectories: string[] = [];
   let isPnpm = false;
   let changedFiles = await changedFilesPromise;
@@ -91,7 +90,6 @@ export let getChangedPackages = async ({
     if (item.path.endsWith("/package.json")) {
       let dirPath = nodePath.dirname(item.path);
       potentialWorkspaceDirectories.push(dirPath);
-      itemsByDirPath.set(dirPath, item);
     } else if (item.path === "pnpm-workspace.yaml") {
       isPnpm = true;
     } else if (item.path === ".changeset/pre.json") {
