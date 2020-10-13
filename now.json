@@ -4,7 +4,8 @@
   "env": {
     "APP_ID": "@prod-app-id",
     "WEBHOOK_SECRET": "@prod-webhook-secret",
-    "PRIVATE_KEY": "@prod-private-key-base64-encoded"
+    "PRIVATE_KEY": "@prod-private-key-base64-encoded",
+    "SENTRY_DSN": "@prod-sentry-dsn"
   },
   "builds": [{ "src": "now.js", "use": "@now/node" }],
   "routes": [{ "src": "/", "dest": "/now.js" }]
