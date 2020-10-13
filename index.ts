@@ -1,10 +1,15 @@
 // @ts-ignore
 import humanId from "human-id";
-import { Application, Context, Octokit } from "probot";
+import { Application, Context } from "probot";
 import Webhooks from "@octokit/webhooks";
 import { getChangedPackages } from "./get-changed-packages";
-import { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
+import {
+  ReleasePlan,
+  ComprehensiveRelease,
+  VersionType,
+} from "@changesets/types";
 import markdownTable from "markdown-table";
+import { captureException } from "@sentry/node";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
@@ -12,17 +17,22 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   let table = markdownTable([
     ["Name", "Type"],
     ...releasePlan.releases
-      .filter((x): x is ComprehensiveRelease & { type: Exclude<VersionType, 'none'>} => x.type !== 'none')
-      .map(x => {
+      .filter(
+        (
+          x
+        ): x is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
+          x.type !== "none"
+      )
+      .map((x) => {
         return [
           x.name,
           {
             major: "Major",
             minor: "Minor",
-            patch: "Patch"
-          }[x.type]
+            patch: "Patch",
+          }[x.type],
         ];
-      })
+      }),
   ]);
 
   return `<details><summary>This PR includes ${
@@ -82,22 +92,22 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 
 const getNewChangesetTemplate = (changedPackages: string[], title: string) =>
   encodeURIComponent(`---
-${changedPackages.map(x => `"${x}": patch`).join("\n")}
+${changedPackages.map((x) => `"${x}": patch`).join("\n")}
 ---
 
 ${title}
 `);
 
-type PRContext = Context<Webhooks.WebhookPayloadPullRequest>;
+type PRContext = Context<Webhooks.EventPayloads.WebhookPayloadPullRequest>;
 
 const getCommentId = (
   context: PRContext,
   params: { repo: string; owner: string; issue_number: number }
 ) =>
-  context.github.issues.listComments(params).then(comments => {
+  context.github.issues.listComments(params).then((comments) => {
     const changesetBotComment = comments.data.find(
       // TODO: find what the current user is in some way or something
-      comment =>
+      (comment) =>
         comment.user.login === "changeset-bot[bot]" ||
         comment.user.login === "changesets-test-bot[bot]"
     );
@@ -105,14 +115,13 @@ const getCommentId = (
   });
 
 const getChangesetId = (
-  changedFilesPromise: Promise<
-    Octokit.Response<Octokit.PullsListFilesResponse>
-  >,
+  changedFilesPromise: ReturnType<PRContext["github"]["pulls"]["listFiles"]>,
   params: { repo: string; owner: string; pull_number: number }
 ) =>
-  changedFilesPromise.then(files =>
+  changedFilesPromise.then((files) =>
     files.data.some(
-      file => file.filename.startsWith(".changeset") && file.status === "added"
+      (file) =>
+        file.filename.startsWith(".changeset") && file.status === "added"
     )
   );
 
@@ -121,7 +130,7 @@ async function fetchJsonFile(context: PRContext, path: string) {
     owner: context.payload.pull_request.head.repo.owner.login,
     repo: context.payload.pull_request.head.repo.name,
     path,
-    ref: context.payload.pull_request.head.ref
+    ref: context.payload.pull_request.head.ref,
   });
   // @ts-ignore
   let buffer = Buffer.from(output.data.content, "base64");
@@ -148,14 +157,13 @@ export default (app: Application) => {
 
         let repo = {
           repo: context.payload.repository.name,
-          owner: context.payload.repository.owner.login
+          owner: context.payload.repository.owner.login,
         };
 
         const latestCommitSha = context.payload.pull_request.head.sha;
-
         let changedFilesPromise = context.github.pulls.listFiles({
           ...repo,
-          pull_number: number
+          pull_number: number,
         });
 
         console.log(context.payload);
@@ -163,7 +171,7 @@ export default (app: Application) => {
         const [
           commentId,
           hasChangeset,
-          { changedPackages, releasePlan }
+          { changedPackages, releasePlan },
         ] = await Promise.all([
           // we know the comment won't exist on opened events
           // ok, well like technically that's wrong
@@ -177,20 +185,23 @@ export default (app: Application) => {
             repo: context.payload.pull_request.head.repo.name,
             owner: context.payload.pull_request.head.repo.owner.login,
             ref: context.payload.pull_request.head.ref,
-            changedFiles: changedFilesPromise.then(x =>
-              x.data.map(x => x.filename)
+            changedFiles: changedFilesPromise.then((x) =>
+              x.data.map((x) => x.filename)
             ),
             octokit: context.github,
-            installationToken: await app.app.getInstallationAccessToken({
-              installationId: (context.payload as any).installation.id
-            })
-          }).catch(err => {
+            installationToken: (
+              await (await app.auth()).apps.createInstallationAccessToken({
+                installation_id: context.payload.installation!.id,
+              })
+            ).data.token,
+          }).catch((err) => {
             console.error(err);
+            captureException(err);
             return {
               changedPackages: ["@fake-scope/fake-pkg"],
-              releasePlan: null
+              releasePlan: null,
             };
-          })
+          }),
         ] as const);
 
         let addChangesetUrl = `${
@@ -199,7 +210,7 @@ export default (app: Application) => {
           context.payload.pull_request.head.ref
         }?filename=.changeset/${humanId({
           separator: "-",
-          capitalize: false
+          capitalize: false,
         })}.md&value=${getNewChangesetTemplate(
           changedPackages,
           context.payload.pull_request.title
@@ -211,7 +222,7 @@ export default (app: Application) => {
           issue_number: number,
           body: hasChangeset
             ? getApproveMessage(latestCommitSha, addChangesetUrl, releasePlan)
-            : getAbsentMessage(latestCommitSha, addChangesetUrl, releasePlan)
+            : getAbsentMessage(latestCommitSha, addChangesetUrl, releasePlan),
         };
 
         if (prComment.comment_id != null) {
