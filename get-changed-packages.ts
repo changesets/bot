@@ -188,11 +188,12 @@ export let getChangedPackages = async ({
   );
 
   return {
-    changedPackages: packages.packages
-      .filter((pkg) =>
-        changedFiles.some((changedFile) => changedFile.includes(pkg.dir))
-      )
-      .map((x) => x.packageJson.name),
+    changedPackages: (packages.tool === "root"
+      ? packages.packages
+      : packages.packages.filter((pkg) =>
+          changedFiles.some((changedFile) => changedFile.includes(pkg.dir))
+        )
+    ).map((x) => x.packageJson.name),
     releasePlan,
   };
 };
