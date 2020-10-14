@@ -150,16 +150,6 @@ export let getChangedPackages = async ({
     }
   }
 
-  if (
-    !tool ||
-    !(
-      Array.isArray(tool.globs) &&
-      tool.globs.every((x) => typeof x === "string")
-    )
-  ) {
-    throw new Error("globs are not valid");
-  }
-
   let rootPackageJsonContent = await rootPackageJsonContentsPromise;
 
   let packages: Packages = {
@@ -167,11 +157,17 @@ export let getChangedPackages = async ({
       dir: "/",
       packageJson: rootPackageJsonContent,
     },
-    tool: tool.tool,
+    tool: tool ? tool.tool : "root",
     packages: [],
   };
 
   if (tool) {
+    if (
+      !Array.isArray(tool.globs) ||
+      !tool.globs.every((x) => typeof x === "string")
+    ) {
+      throw new Error("globs are not valid: " + JSON.stringify(tool.globs));
+    }
     let matches = micromatch(potentialWorkspaceDirectories, tool.globs);
 
     packages.packages = await Promise.all(
@@ -181,7 +177,7 @@ export let getChangedPackages = async ({
     packages.packages.push(packages.root);
   }
   if (hasErrored) {
-    throw new Error("an error occurred");
+    throw new Error("an error occurred when fetching files");
   }
 
   const releasePlan = assembleReleasePlan(
