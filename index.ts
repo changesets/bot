@@ -185,7 +185,7 @@ export default (app: Application) => {
             ).data.token,
           }).catch((err) => {
             if (err instanceof ValidationError) {
-              errFromFetchingChangedFiles = `<details><summary>💥 An error occurred when fetching the changed packages in this PR</summary>\n\n\`\`\`\n${err.message}\n\`\`\`\n\n</details>\n`;
+              errFromFetchingChangedFiles = `<details><summary>💥 An error occurred when fetching the changed packages and changesets in this PR</summary>\n\n\`\`\`\n${err.message}\n\`\`\`\n\n</details>\n`;
             } else {
               console.error(err);
               captureException(err);
