@@ -10,6 +10,7 @@ import {
 } from "@changesets/types";
 import markdownTable from "markdown-table";
 import { captureException } from "@sentry/node";
+import { ValidationError } from "@changesets/errors";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
@@ -125,32 +126,20 @@ const getChangesetId = (
     )
   );
 
-async function fetchJsonFile(context: PRContext, path: string) {
-  let output = await context.github.repos.getContents({
-    owner: context.payload.pull_request.head.repo.owner.login,
-    repo: context.payload.pull_request.head.repo.name,
-    path,
-    ref: context.payload.pull_request.head.ref,
-  });
-  // @ts-ignore
-  let buffer = Buffer.from(output.data.content, "base64");
-  return JSON.parse(buffer.toString("utf8"));
-}
-
 export default (app: Application) => {
   app.auth();
   app.log("Yay, the app was loaded!");
 
   app.on(
     ["pull_request.opened", "pull_request.synchronize"],
-    // @ts-ignore
     async (context: PRContext) => {
-      context;
       if (
         context.payload.pull_request.head.ref.startsWith("changeset-release")
       ) {
         return;
       }
+
+      let errFromFetchingChangedFiles = "";
 
       try {
         let number = context.payload.number;
@@ -195,8 +184,12 @@ export default (app: Application) => {
               })
             ).data.token,
           }).catch((err) => {
-            console.error(err);
-            captureException(err);
+            if (err instanceof ValidationError) {
+              errFromFetchingChangedFiles = `<details><summary>💥 An error occurred when fetching the changed packages in this PR</summary>\n\n\`\`\`\n${err.message}\`\`\`\n\n</details>\n`;
+            } else {
+              console.error(err);
+              captureException(err);
+            }
             return {
               changedPackages: ["@fake-scope/fake-pkg"],
               releasePlan: null,
@@ -220,9 +213,14 @@ export default (app: Application) => {
           ...repo,
           comment_id: commentId,
           issue_number: number,
-          body: hasChangeset
-            ? getApproveMessage(latestCommitSha, addChangesetUrl, releasePlan)
-            : getAbsentMessage(latestCommitSha, addChangesetUrl, releasePlan),
+          body:
+            (hasChangeset
+              ? getApproveMessage(latestCommitSha, addChangesetUrl, releasePlan)
+              : getAbsentMessage(
+                  latestCommitSha,
+                  addChangesetUrl,
+                  releasePlan
+                )) + errFromFetchingChangedFiles,
         };
 
         if (prComment.comment_id != null) {
