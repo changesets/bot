@@ -4,14 +4,13 @@
 
 ## Install the bot at https://github.com/apps/changeset-bot
 
-
-
 This bot will comment on PRs saying that either a user might need to add a changeset(note that PRs changing things like documentation generally don't need a changeset)or say that the PR is good and already has a changeset.
+
+It wil also comment on released Pull Requests/Issues.
 
 <img width="1552" alt="screenshot of changeset bot message from https://github.com/mitchellhamilton/manypkg/pull/18 before a changeset was added" src="https://user-images.githubusercontent.com/11481355/66183943-dc418680-e6bd-11e9-998d-e43f90a974bd.png">
 
 <img width="1552" alt="screenshot of the changeset bot message from https://github.com/mitchellhamilton/manypkg/pull/18 showing the changeset good to go message" src="https://user-images.githubusercontent.com/11481355/66184229-cf716280-e6be-11e9-950e-0f64a31dbf15.png">
-
 
 Sometimes, a contributor won't add a changeset to a PR but you might want to merge in the PR without having to wait on them to add it. To address this, this bot adds a link with the filename pre-filled to add a changeset so all you have to do is write the changeset and click commit.
 
@@ -27,16 +26,16 @@ When writing the changeset, it should look something like this with the packages
 
 ```markdown
 ---
-'@changesets/cli': major
-'@changesets/read': minor
+"@changesets/cli": major
+"@changesets/read": minor
 ---
 
 A very helpful description of the changes
 ```
+
 ---
 
 The information below is for contributing to the bot.
-
 
 ## Setup
 

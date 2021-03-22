@@ -11,6 +11,7 @@ import {
 import markdownTable from "markdown-table";
 import { captureException } from "@sentry/node";
 import { ValidationError } from "@changesets/errors";
+import issueParser from "issue-parser";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
@@ -91,6 +92,14 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 
 `;
 
+const getReleaseMessage = (
+  html_url: string,
+  name: string
+) => `###  🦋  This work has been released in release version: ${name}
+
+Release link: ${html_url}
+`;
+
 const getNewChangesetTemplate = (changedPackages: string[], title: string) =>
   encodeURIComponent(`---
 ${changedPackages.map((x) => `"${x}": patch`).join("\n")}
@@ -100,6 +109,21 @@ ${title}
 `);
 
 type PRContext = Context<Webhooks.EventPayloads.WebhookPayloadPullRequest>;
+type ReleaseContext = Context<Webhooks.EventPayloads.WebhookPayloadRelease>;
+
+const getSearchQueries = (base: string, commits: string[]) => {
+  return commits.reduce((searches, commit) => {
+    const lastSearch = searches[searches.length - 1];
+
+    if (lastSearch && lastSearch.length + commit.length <= 256 - 1) {
+      searches[searches.length - 1] = `${lastSearch}+hash:${commit}`;
+    } else {
+      searches.push(`${base}+hash:${commit}`);
+    }
+
+    return searches;
+  }, [] as string[]);
+};
 
 const getCommentId = (
   context: PRContext,
@@ -129,6 +153,138 @@ const getChangesetId = (
 export default (app: Application) => {
   app.auth();
   app.log("Yay, the app was loaded!");
+
+  /* Comment on released Pull Requests/Issues  */
+  app.on("release.published", async (context: ReleaseContext) => {
+    /*
+    Here are the following steps to retrieve the released PRs and issues.
+  
+      1. Retrieve the tag associated with the release
+      2. Take the commit sha associated with the tag
+      3. Retrieve all the commits starting from the tag commit sha
+      4. Retrieve the PRs with commits sha matching the release commits
+      5. Map through the list of commits and the list of PRs to
+         find commit message or PRs body that closes an issue and
+         get the issue number.
+      6. Create a comment for each issue and PR
+    */
+
+    const release = context.payload.release;
+    const { html_url, tag_name } = release;
+    const repo = {
+      repo: context.payload.repository.name,
+      owner: context.payload.repository.owner.login,
+    };
+
+    let tagPage = 0;
+    let tagFound = false;
+    let tagCommitSha = "";
+
+    /* 1 */
+    while (!tagFound) {
+      await context.github.repos
+        .listTags({
+          ...repo,
+          per_page: 100,
+          tagPage,
+        })
+        .then(({ data }) => {
+          const tag = data.find((el) => el.name === tag_name);
+          if (tag) {
+            tagFound = true;
+            /* 2 */
+            tagCommitSha = tag.commit.sha;
+          }
+          tagPage += 1;
+        });
+    }
+
+    /* 3 */
+    const commits = await context.github.repos
+      .listCommits({
+        ...repo,
+        sha: tagCommitSha,
+      })
+      .then(({ data }) => data);
+
+    const shas = commits.map(({ sha }) => sha);
+
+    /* Build a seach query to retrieve pulls with commit hashes.
+     *  example: repo:<OWNER>/<REPO>+type:pr+is:merged+hash:<FIRST_COMMIT_HASH>+hash:<SECOND_COMMIT_HASH>...
+     */
+    const searchQueries = getSearchQueries(
+      `repo:${repo.owner}/${repo.repo}+type:pr+is:merged`,
+      shas
+    ).map(
+      async (q) =>
+        (await context.github.search.issuesAndPullRequests({ q })).data.items
+    );
+
+    const queries = await (await Promise.all(searchQueries)).flat();
+
+    const queriesSet = queries.map((el) => el.number);
+
+    const filteredQueries = queries.filter(
+      (el, i) => queriesSet.indexOf(el.number) === i
+    );
+
+    /* 4 */
+    const pulls = await filteredQueries.filter(
+      async ({ number }) =>
+        (
+          await context.github.pulls.listCommits({
+            owner: repo.owner,
+            repo: repo.repo,
+            pull_number: number,
+          })
+        ).data.find(({ sha }) => shas.includes(sha)) ||
+        shas.includes(
+          (
+            await context.github.pulls.get({
+              owner: repo.owner,
+              repo: repo.repo,
+              pull_number: number,
+            })
+          ).data.merge_commit_sha
+        )
+    );
+
+    const parser = issueParser("github");
+
+    /* 5 */
+    const issues = [
+      ...pulls.map((pr) => pr.body),
+      ...commits.map(({ commit }) => commit.message),
+    ].reduce((issues, message) => {
+      return message
+        ? issues.concat(
+            parser(message)
+              .actions.close.filter(
+                (action) =>
+                  action.slug === null ||
+                  action.slug === undefined ||
+                  action.slug === `${repo.owner}/${repo.repo}`
+              )
+              .map((action) => ({ number: Number.parseInt(action.issue, 10) }))
+          )
+        : issues;
+    }, [] as { number: number }[]);
+
+    /* 6 */
+    await Promise.all(
+      [...new Set([...pulls, ...issues].map(({ number }) => number))].map(
+        async (number) => {
+          const issueComment = {
+            ...repo,
+            issue_number: number,
+            body: getReleaseMessage(html_url, tag_name),
+          };
+
+          context.github.issues.createComment(issueComment);
+        }
+      )
+    );
+  });
 
   app.on(
     ["pull_request.opened", "pull_request.synchronize"],
