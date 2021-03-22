@@ -186,7 +186,7 @@ export default (app: Application) => {
         .listTags({
           ...repo,
           per_page: 100,
-          tagPage,
+          page: tagPage,
         })
         .then(({ data }) => {
           const tag = data.find((el) => el.name === tag_name);
@@ -196,7 +196,8 @@ export default (app: Application) => {
             tagCommitSha = tag.commit.sha;
           }
           tagPage += 1;
-        });
+        })
+        .catch((err) => console.warn(err));
     }
 
     /* 3 */
