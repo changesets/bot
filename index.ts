@@ -15,15 +15,17 @@ import { ValidationError } from "@changesets/errors";
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
 
-  let table = markdownTable([
-    ["Name", "Type"],
-    ...releasePlan.releases
+  const publishableReleases = releasePlan.releases
       .filter(
         (
           x
         ): x is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
           x.type !== "none"
       )
+
+  let table = markdownTable([
+    ["Name", "Type"],
+    ...publishableReleases
       .map((x) => {
         return [
           x.name,
@@ -39,15 +41,15 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   return `<details><summary>This PR includes ${
     releasePlan.changesets.length
       ? `changesets to release ${
-          releasePlan.releases.length === 1
+          publishableReleases.length === 1
             ? "1 package"
-            : `${releasePlan.releases.length} packages`
+            : `${publishableReleases.length} packages`
         }`
       : "no changesets"
   }</summary>
 
   ${
-    releasePlan.releases.length
+    publishableReleases.length
       ? table
       : "When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types"
   }
