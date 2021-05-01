@@ -115,14 +115,15 @@ const getCommentId = (
     return changesetBotComment ? changesetBotComment.id : null;
   });
 
-const getChangesetId = (
-  changedFilesPromise: ReturnType<PRContext["github"]["pulls"]["listFiles"]>,
-  params: { repo: string; owner: string; pull_number: number }
+const hasChangesetBeenAdded = (
+  changedFilesPromise: ReturnType<PRContext["github"]["pulls"]["listFiles"]>
 ) =>
   changedFilesPromise.then((files) =>
     files.data.some(
       (file) =>
-        file.filename.startsWith(".changeset") && file.status === "added"
+        file.status === "added" &&
+        /^\.changeset\/.+\.md$/.test(file.filename) &&
+        file.filename !== '.changeset/README.md'
     )
   );
 
@@ -169,7 +170,7 @@ export default (app: Application) => {
           context.payload.action === "synchronize"
             ? getCommentId(context, { ...repo, issue_number: number })
             : undefined,
-          getChangesetId(changedFilesPromise, { ...repo, pull_number: number }),
+          hasChangesetBeenAdded(changedFilesPromise),
           getChangedPackages({
             repo: context.payload.pull_request.head.repo.name,
             owner: context.payload.pull_request.head.repo.owner.login,
