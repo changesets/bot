@@ -6,7 +6,7 @@
 
 
 
-This bot will comment on PRs saying that either a user might need to add a changeset(note that PRs changing things like documentation generally don't need a changeset)or say that the PR is good and already has a changeset.
+This bot will comment on PRs saying that either a user might need to add a changeset (note that PRs changing things like documentation generally don't need a changeset) or say that the PR is good and already has a changeset.
 
 <img width="1552" alt="screenshot of changeset bot message from https://github.com/mitchellhamilton/manypkg/pull/18 before a changeset was added" src="https://user-images.githubusercontent.com/11481355/66183943-dc418680-e6bd-11e9-998d-e43f90a974bd.png">
 
@@ -46,7 +46,7 @@ yarn
 
 ## Behaviour
 
-The changeset bot will listen for pull requests being opened and pull requests that have been updated, upon which it will
+The changeset bot will listen for opening and updates to pull requests, upon which it will
 then scan through the files for a changeset that has been added. The bot will make a comment on the PR stating
-whether it found a changeset or not, as well as the message of the latest commit. If the PR is being updated
-then the bot will update the existing comment
+whether or not it found a changeset, as well as the message of the latest commit. If the PR is being updated
+then the bot will update its original comment.
