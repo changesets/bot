@@ -1,5 +1,5 @@
 import { createNodeMiddleware, createProbot } from "probot";
-import app from "../index";
+import app from "../../index";
 
 // requires:
 // - APP_ID
@@ -9,6 +9,5 @@ const probot = createProbot();
 
 export default createNodeMiddleware(app, {
   probot,
-
   webhooksPath: "/api/webhook",
 });
