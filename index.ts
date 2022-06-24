@@ -1,7 +1,7 @@
 // @ts-ignore
 import humanId from "human-id";
-import { Application, Context } from "probot";
-import Webhooks from "@octokit/webhooks";
+import { Probot, Context } from "probot";
+import { EmitterWebhookEvent } from "@octokit/webhooks";
 import { getChangedPackages } from "./get-changed-packages";
 import {
   ReleasePlan,
@@ -15,27 +15,23 @@ import { ValidationError } from "@changesets/errors";
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
 
-  const publishableReleases = releasePlan.releases
-      .filter(
-        (
-          x
-        ): x is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
-          x.type !== "none"
-      )
+  const publishableReleases = releasePlan.releases.filter(
+    (x): x is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
+      x.type !== "none"
+  );
 
   let table = markdownTable([
     ["Name", "Type"],
-    ...publishableReleases
-      .map((x) => {
-        return [
-          x.name,
-          {
-            major: "Major",
-            minor: "Minor",
-            patch: "Patch",
-          }[x.type],
-        ];
-      }),
+    ...publishableReleases.map((x) => {
+      return [
+        x.name,
+        {
+          major: "Major",
+          minor: "Minor",
+          patch: "Patch",
+        }[x.type],
+      ];
+    }),
   ]);
 
   return `<details><summary>This PR includes ${
@@ -101,41 +97,44 @@ ${changedPackages.map((x) => `"${x}": patch`).join("\n")}
 ${title}
 `);
 
-type PRContext = Context<Webhooks.EventPayloads.WebhookPayloadPullRequest>;
+type PRContext = EmitterWebhookEvent<
+  "pull_request.opened" | "pull_request.synchronize"
+> &
+  Omit<Context, keyof EmitterWebhookEvent>;
 
 const getCommentId = (
   context: PRContext,
   params: { repo: string; owner: string; issue_number: number }
 ) =>
-  context.github.issues.listComments(params).then((comments) => {
+  context.octokit.issues.listComments(params).then((comments) => {
     const changesetBotComment = comments.data.find(
       // TODO: find what the current user is in some way or something
       (comment) =>
-        comment.user.login === "changeset-bot[bot]" ||
-        comment.user.login === "changesets-test-bot[bot]"
+        comment.user?.login === "changeset-bot[bot]" ||
+        comment.user?.login === "changesets-test-bot[bot]"
     );
     return changesetBotComment ? changesetBotComment.id : null;
   });
 
 const hasChangesetBeenAdded = (
-  changedFilesPromise: ReturnType<PRContext["github"]["pulls"]["listFiles"]>
+  changedFilesPromise: ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>
 ) =>
   changedFilesPromise.then((files) =>
     files.data.some(
       (file) =>
         file.status === "added" &&
         /^\.changeset\/.+\.md$/.test(file.filename) &&
-        file.filename !== '.changeset/README.md'
+        file.filename !== ".changeset/README.md"
     )
   );
 
-export default (app: Application) => {
+export default (app: Probot) => {
   app.auth();
   app.log("Yay, the app was loaded!");
 
   app.on(
     ["pull_request.opened", "pull_request.synchronize"],
-    async (context: PRContext) => {
+    async (context) => {
       if (
         context.payload.pull_request.head.ref.startsWith("changeset-release")
       ) {
@@ -153,52 +152,49 @@ export default (app: Application) => {
         };
 
         const latestCommitSha = context.payload.pull_request.head.sha;
-        let changedFilesPromise = context.github.pulls.listFiles({
+        let changedFilesPromise = context.octokit.pulls.listFiles({
           ...repo,
           pull_number: number,
         });
 
-        console.log(context.payload);
-
-        const [
-          commentId,
-          hasChangeset,
-          { changedPackages, releasePlan },
-        ] = await Promise.all([
-          // we know the comment won't exist on opened events
-          // ok, well like technically that's wrong
-          // but reducing time is nice here so that
-          // deploying this doesn't cost money
-          context.payload.action === "synchronize"
-            ? getCommentId(context, { ...repo, issue_number: number })
-            : undefined,
-          hasChangesetBeenAdded(changedFilesPromise),
-          getChangedPackages({
-            repo: context.payload.pull_request.head.repo.name,
-            owner: context.payload.pull_request.head.repo.owner.login,
-            ref: context.payload.pull_request.head.ref,
-            changedFiles: changedFilesPromise.then((x) =>
-              x.data.map((x) => x.filename)
-            ),
-            octokit: context.github,
-            installationToken: (
-              await (await app.auth()).apps.createInstallationAccessToken({
-                installation_id: context.payload.installation!.id,
-              })
-            ).data.token,
-          }).catch((err) => {
-            if (err instanceof ValidationError) {
-              errFromFetchingChangedFiles = `<details><summary>💥 An error occurred when fetching the changed packages and changesets in this PR</summary>\n\n\`\`\`\n${err.message}\n\`\`\`\n\n</details>\n`;
-            } else {
-              console.error(err);
-              captureException(err);
-            }
-            return {
-              changedPackages: ["@fake-scope/fake-pkg"],
-              releasePlan: null,
-            };
-          }),
-        ] as const);
+        const [commentId, hasChangeset, { changedPackages, releasePlan }] =
+          await Promise.all([
+            // we know the comment won't exist on opened events
+            // ok, well like technically that's wrong
+            // but reducing time is nice here so that
+            // deploying this doesn't cost money
+            context.payload.action === "synchronize"
+              ? getCommentId(context, { ...repo, issue_number: number })
+              : undefined,
+            hasChangesetBeenAdded(changedFilesPromise),
+            getChangedPackages({
+              repo: context.payload.pull_request.head.repo.name,
+              owner: context.payload.pull_request.head.repo.owner.login,
+              ref: context.payload.pull_request.head.ref,
+              changedFiles: changedFilesPromise.then((x) =>
+                x.data.map((x) => x.filename)
+              ),
+              octokit: context.octokit,
+              installationToken: (
+                await (
+                  await app.auth()
+                ).apps.createInstallationAccessToken({
+                  installation_id: context.payload.installation!.id,
+                })
+              ).data.token,
+            }).catch((err) => {
+              if (err instanceof ValidationError) {
+                errFromFetchingChangedFiles = `<details><summary>💥 An error occurred when fetching the changed packages and changesets in this PR</summary>\n\n\`\`\`\n${err.message}\n\`\`\`\n\n</details>\n`;
+              } else {
+                console.error(err);
+                captureException(err);
+              }
+              return {
+                changedPackages: ["@fake-scope/fake-pkg"],
+                releasePlan: null,
+              };
+            }),
+          ] as const);
 
         let addChangesetUrl = `${
           context.payload.pull_request.head.repo.html_url
@@ -214,7 +210,6 @@ export default (app: Application) => {
 
         let prComment = {
           ...repo,
-          comment_id: commentId,
           issue_number: number,
           body:
             (hasChangeset
@@ -226,11 +221,13 @@ export default (app: Application) => {
                 )) + errFromFetchingChangedFiles,
         };
 
-        if (prComment.comment_id != null) {
-          // @ts-ignore
-          return context.github.issues.updateComment(prComment);
+        if (commentId != null) {
+          return context.octokit.issues.updateComment({
+            ...prComment,
+            comment_id: commentId,
+          });
         }
-        return context.github.issues.createComment(prComment);
+        return context.octokit.issues.createComment(prComment);
       } catch (err) {
         console.error(err);
         throw err;
