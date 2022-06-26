@@ -9,8 +9,6 @@ import { parse as parseConfig } from "@changesets/config";
 import { PreState, NewChangeset } from "@changesets/types";
 import parseChangeset from "@changesets/parse";
 
-type Sha = string & { ___sha: string };
-
 export let getChangedPackages = async ({
   owner,
   repo,
@@ -87,6 +85,7 @@ export let getChangedPackages = async ({
   let changedFiles = await changedFilesPromise;
 
   for (let item of tree.data.tree) {
+    if (!item.path) continue;
     if (item.path.endsWith("/package.json")) {
       let dirPath = nodePath.dirname(item.path);
       potentialWorkspaceDirectories.push(dirPath);
