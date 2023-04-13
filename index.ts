@@ -200,7 +200,7 @@ export default (app: Probot) => {
           context.payload.pull_request.head.repo.html_url
         }/new/${
           context.payload.pull_request.head.ref
-        }?filename=.changeset/${humanId({
+        }/.changeset?filename=${humanId({
           separator: "-",
           capitalize: false,
         })}.md&value=${getNewChangesetTemplate(
