@@ -210,7 +210,6 @@ export default (app: Probot) => {
 
         let prComment = {
           ...repo,
-          issue_number: number,
           body:
             (hasChangeset
               ? getApproveMessage(latestCommitSha, addChangesetUrl, releasePlan)
@@ -227,7 +226,10 @@ export default (app: Probot) => {
             comment_id: commentId,
           });
         }
-        return context.octokit.issues.createComment(prComment);
+        return context.octokit.issues.createComment({
+          ...prComment,
+          issue_number: number,
+        });
       } catch (err) {
         console.error(err);
         throw err;

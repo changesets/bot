@@ -39,14 +39,13 @@ describe("changeset-bot", () => {
       }),
     });
 
-
     app = changesetBot.default(probot)
 
     // just return a test token
     app.app = () => "test.ts";
   });
 
-  it("should add a comment when there is no comment", async () => {
+  beforeEach(() => {
     nock("https://raw.githubusercontent.com")
         .get("/changesets/bot/test/package.json")
         .reply(200, {})
@@ -65,22 +64,19 @@ describe("changeset-bot", () => {
         .post("/app/installations/2462428/access_tokens")
         .reply(200, [])
 
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
-      .reply(200, []);
+  })
 
+  it("should add a comment when there is no comment", async () => {
     nock("https://api.github.com")
       .get("/repos/changesets/bot/pulls/2/files")
       .reply(200, [
         { filename: ".changeset/something/changes.md", status: "added" }
       ]);
 
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
-
+    // checks and creates a comment
     nock("https://api.github.com")
       .post("/repos/changesets/bot/issues/2/comments", body => {
+        expect(body.body).toContain("Changeset detected")
         expect(body.comment_id).toBeUndefined()
         return true;
       })
@@ -93,33 +89,31 @@ describe("changeset-bot", () => {
   });
 
   it("should update a comment when there is a comment", async () => {
+    const commentId = 123
+
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
-      .reply(200, [
-        {
-          id: 7,
+        .get("/repos/changesets/bot/pulls/2/files")
+        .reply(200, [
+          { filename: ".changeset/something/changes.md", status: "added" }
+        ]);
+
+    // get comments for an issue
+    nock("https://api.github.com")
+        .get("/repos/changesets/bot/issues/2/comments")
+        .reply(200, [{
+          id: commentId,
           user: {
             login: "changeset-bot[bot]"
           }
-        }
-      ]);
+        }]);
 
+    // update comments for an issue
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
-      .reply(200, [
-        { filename: ".changeset/something/changes.md", status: "added" }
-      ]);
-
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
-
-    nock("https://api.github.com")
-      .patch("/repos/pyu/testing-things/issues/comments/7", body => {
-        expect(body.number).toBe(1);
-        return true;
-      })
-      .reply(200);
+        .patch(`/repos/changesets/bot/issues/comments/${commentId}`, body => {
+          expect(body.body).toContain("Changeset detected")
+          return true;
+        })
+        .reply(200);
 
     await probot.receive({
       name: "pull_request",
