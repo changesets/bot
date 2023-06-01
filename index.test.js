@@ -1,8 +1,6 @@
 const nock = require("nock");
 const { Probot, ProbotOctokit } = require("probot");
 const outdent = require("outdent");
-const pino = require("pino");
-const Stream = require("stream");
 
 const changesetBot = require(".");
 
@@ -12,34 +10,19 @@ const releasePullRequestOpen = require("./test/fixtures/release_pull_request.ope
 
 nock.disableNetConnect();
 
-const output = []
-
-const streamLogsToOutput = new Stream.Writable({ objectMode: true });
-streamLogsToOutput._write = (object, encoding, done) => {
-  output.push(JSON.parse(object));
-  done();
-};
-
 describe("changeset-bot", () => {
   let probot;
-  let app
 
   beforeEach(async() => {
     probot = new Probot({
       githubToken: "test",
-      appId: 123,
-      privateKey: 123,
-      log: pino(streamLogsToOutput),
       Octokit: ProbotOctokit.defaults({
         retry: { enabled: false },
         throttle: { enabled: false },
       }),
     });
 
-    app = changesetBot.default(probot)
-
-    // just return a test token
-    app.app = () => "test.ts";
+    changesetBot.default(probot)
   });
 
   beforeEach(() => {
@@ -60,7 +43,6 @@ describe("changeset-bot", () => {
     nock("https://api.github.com")
         .post("/app/installations/2462428/access_tokens")
         .reply(200, [])
-
   })
 
   it("should add a comment when there is no comment", async () => {
@@ -79,7 +61,7 @@ describe("changeset-bot", () => {
       })
       .reply(200);
 
-    await app.receive({
+    await probot.receive({
       name: "pull_request",
       payload: pullRequestOpen
     });
@@ -89,10 +71,10 @@ describe("changeset-bot", () => {
     const commentId = 123
 
     nock("https://api.github.com")
-        .get("/repos/changesets/bot/pulls/2/files")
-        .reply(200, [
-          { filename: ".changeset/something/changes.md", status: "added" }
-        ]);
+      .get("/repos/changesets/bot/pulls/2/files")
+      .reply(200, [
+        { filename: ".changeset/something/changes.md", status: "added" }
+      ]);
 
     // get comments for an issue
     nock("https://api.github.com")
@@ -106,11 +88,11 @@ describe("changeset-bot", () => {
 
     // update comments for an issue
     nock("https://api.github.com")
-        .patch(`/repos/changesets/bot/issues/comments/${commentId}`, body => {
-          expect(body.body).toContain("Changeset detected")
-          return true;
-        })
-        .reply(200);
+      .patch(`/repos/changesets/bot/issues/comments/${commentId}`, body => {
+        expect(body.body).toContain("Changeset detected")
+        return true;
+      })
+    .reply(200);
 
     await probot.receive({
       name: "pull_request",
@@ -163,13 +145,23 @@ describe("changeset-bot", () => {
       .reply(200, [{ filename: "index.js", status: "added" }]);
 
     nock("https://api.github.com")
-      .get("/repos/changesets/bot/pulls/2/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
-
-    nock("https://api.github.com")
       .post("/repos/changesets/bot/issues/2/comments", ({ body }) => {
-          // todo better assertion
-        expect(body).toContain("Click here to learn what changesets are, and how to add one");
+          expect(body).toContain(outdent`
+          ###  ⚠️  No Changeset found
+
+          Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+          Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+
+          <details><summary>This PR includes no changesets</summary>
+
+            When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+          </details>
+
+          [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+          `);
+          expect(body).toMatch(/\[Click here if you're a maintainer who wants to add a changeset to this PR]\(https:\/\/github\.com\/changesets\/bot\/new\/test\?filename=\.changeset/)
         return true;
       })
       .reply(200);
