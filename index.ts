@@ -234,4 +234,6 @@ export default (app: Probot) => {
       }
     }
   );
+
+  return app
 };

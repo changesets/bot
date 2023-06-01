@@ -1,6 +1,8 @@
 const nock = require("nock");
-const { Probot } = require("probot");
+const { Probot, ProbotOctokit } = require("probot");
 const outdent = require("outdent");
+const pino = require("pino");
+const Stream = require("stream");
 
 const changesetBot = require(".");
 
@@ -10,27 +12,65 @@ const releasePullRequestOpen = require("./test/fixtures/release_pull_request.ope
 
 nock.disableNetConnect();
 
+const output = []
+
+const streamLogsToOutput = new Stream.Writable({ objectMode: true });
+streamLogsToOutput._write = (object, encoding, done) => {
+  output.push(JSON.parse(object));
+  done();
+};
+
 /*
 Oh god none of these tests work - we should really do something about having this tested
 */
-describe.skip("changeset-bot", () => {
+describe("changeset-bot", () => {
   let probot;
+  let app
 
-  beforeEach(() => {
-    probot = new Probot({});
-    const app = probot.load(changesetBot);
+  beforeEach(async() => {
+    probot = new Probot({
+      githubToken: "test",
+      appId: 123,
+      privateKey: 123,
+      log: pino(streamLogsToOutput),
+      Octokit: ProbotOctokit.defaults({
+        retry: { enabled: false },
+        throttle: { enabled: false },
+      }),
+    });
+
+
+    app = changesetBot.default(probot)
 
     // just return a test token
     app.app = () => "test.ts";
   });
 
   it("should add a comment when there is no comment", async () => {
+    nock("https://raw.githubusercontent.com")
+        .get("/changesets/bot/test/package.json")
+        .reply(200, {})
+
+    nock("https://raw.githubusercontent.com")
+        .get("/changesets/bot/test/.changeset/config.json")
+        .reply(200, {})
+
+    nock("https://api.github.com")
+        .get("/repos/changesets/bot/git/trees/test?recursive=1")
+        .reply(200, {
+          tree: [],
+        })
+
+    nock("https://api.github.com")
+        .post("/app/installations/2462428/access_tokens")
+        .reply(200, [])
+
     nock("https://api.github.com")
       .get("/repos/pyu/testing-things/issues/1/comments")
       .reply(200, []);
 
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
+      .get("/repos/changesets/bot/pulls/2/files")
       .reply(200, [
         { filename: ".changeset/something/changes.md", status: "added" }
       ]);
@@ -40,13 +80,13 @@ describe.skip("changeset-bot", () => {
       .reply(200, [{ sha: "ABCDE" }]);
 
     nock("https://api.github.com")
-      .post("/repos/pyu/testing-things/issues/1/comments", body => {
-        expect(body.comment_id).toBeNull();
+      .post("/repos/changesets/bot/issues/2/comments", body => {
+        expect(body.comment_id).toBeUndefined()
         return true;
       })
       .reply(200);
 
-    await probot.receive({
+    await app.receive({
       name: "pull_request",
       payload: pullRequestOpen
     });
