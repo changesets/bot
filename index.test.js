@@ -1,5 +1,5 @@
 const nock = require("nock");
-const { Probot } = require("probot");
+const { Probot, ProbotOctokit } = require("probot");
 const outdent = require("outdent");
 
 const changesetBot = require(".");
@@ -10,38 +10,53 @@ const releasePullRequestOpen = require("./test/fixtures/release_pull_request.ope
 
 nock.disableNetConnect();
 
-/*
-Oh god none of these tests work - we should really do something about having this tested
-*/
-describe.skip("changeset-bot", () => {
+describe("changeset-bot", () => {
   let probot;
 
-  beforeEach(() => {
-    probot = new Probot({});
-    const app = probot.load(changesetBot);
+  beforeEach(async() => {
+    probot = new Probot({
+      githubToken: "test",
+      Octokit: ProbotOctokit.defaults({
+        retry: { enabled: false },
+        throttle: { enabled: false },
+      }),
+    });
 
-    // just return a test token
-    app.app = () => "test.ts";
+    changesetBot.default(probot)
   });
+
+  beforeEach(() => {
+    nock("https://raw.githubusercontent.com")
+        .get("/changesets/bot/test/package.json")
+        .reply(200, {})
+
+    nock("https://raw.githubusercontent.com")
+        .get("/changesets/bot/test/.changeset/config.json")
+        .reply(200, {})
+
+    nock("https://api.github.com")
+        .get("/repos/changesets/bot/git/trees/test?recursive=1")
+        .reply(200, {
+          tree: [],
+        })
+
+    nock("https://api.github.com")
+        .post("/app/installations/2462428/access_tokens")
+        .reply(200, [])
+  })
 
   it("should add a comment when there is no comment", async () => {
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
-      .reply(200, []);
-
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
+      .get("/repos/changesets/bot/pulls/2/files")
       .reply(200, [
         { filename: ".changeset/something/changes.md", status: "added" }
       ]);
 
+    // checks and creates a comment
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
-
-    nock("https://api.github.com")
-      .post("/repos/pyu/testing-things/issues/1/comments", body => {
-        expect(body.comment_id).toBeNull();
+      .post("/repos/changesets/bot/issues/2/comments", body => {
+        expect(body.body).toContain("Changeset detected")
+        expect(body.comment_id).toBeUndefined()
         return true;
       })
       .reply(200);
@@ -53,33 +68,31 @@ describe.skip("changeset-bot", () => {
   });
 
   it("should update a comment when there is a comment", async () => {
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
-      .reply(200, [
-        {
-          id: 7,
-          user: {
-            login: "changeset-bot[bot]"
-          }
-        }
-      ]);
+    const commentId = 123
 
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
+      .get("/repos/changesets/bot/pulls/2/files")
       .reply(200, [
         { filename: ".changeset/something/changes.md", status: "added" }
       ]);
 
+    // get comments for an issue
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
+        .get("/repos/changesets/bot/issues/2/comments")
+        .reply(200, [{
+          id: commentId,
+          user: {
+            login: "changeset-bot[bot]"
+          }
+        }]);
 
+    // update comments for an issue
     nock("https://api.github.com")
-      .patch("/repos/pyu/testing-things/issues/comments/7", body => {
-        expect(body.number).toBe(1);
+      .patch(`/repos/changesets/bot/issues/comments/${commentId}`, body => {
+        expect(body.body).toContain("Changeset detected")
         return true;
       })
-      .reply(200);
+    .reply(200);
 
     await probot.receive({
       name: "pull_request",
@@ -87,13 +100,13 @@ describe.skip("changeset-bot", () => {
     });
   });
 
-  it("should show correct message if there is a changeset", async () => {
+  it.skip("should show correct message if there is a changeset", async () => {
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
+      .get("/repos/repos/changesets/bot/issues/2/comments")
       .reply(200, []);
 
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
+      .get("/repos/changesets/bot/pulls/2/files")
       .reply(200, [
         { filename: ".changeset/something/changes.md", status: "added" }
       ]);
@@ -103,7 +116,7 @@ describe.skip("changeset-bot", () => {
       .reply(200, [{ sha: "ABCDE" }]);
 
     nock("https://api.github.com")
-      .post("/repos/pyu/testing-things/issues/1/comments", ({ body }) => {
+      .post("/repos/changesets/bot/issues/2/comments", ({ body }) => {
         expect(body).toEqual(outdent`
           ###  🦋  Changeset is good to go
 
@@ -124,29 +137,31 @@ describe.skip("changeset-bot", () => {
 
   it("should show correct message if there is no changeset", async () => {
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
+      .get("/repos/changesets/bot/issues/2/comments")
       .reply(200, []);
 
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
+      .get("/repos/changesets/bot/pulls/2/files")
       .reply(200, [{ filename: "index.js", status: "added" }]);
 
     nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
+      .post("/repos/changesets/bot/issues/2/comments", ({ body }) => {
+          expect(body).toContain(outdent`
+          ###  ⚠️  No Changeset found
 
-    nock("https://api.github.com")
-      .post("/repos/pyu/testing-things/issues/1/comments", ({ body }) => {
-        expect(body).toEqual(outdent`
-          ###  💥  No Changeset
+          Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
-          Latest commit: ABCDE
+          Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
 
-          Merging this PR will not cause any packages to be released. If these changes should not cause updates to packages in this repo, this is fine 🙂
+          <details><summary>This PR includes no changesets</summary>
 
-          **If these changes should be published to npm, you need to add a changeset.**
+            When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
 
-          [Click here to learn what changesets are, and how to add one](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).`);
+          </details>
+
+          [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+          `);
+          expect(body).toMatch(/\[Click here if you're a maintainer who wants to add a changeset to this PR]\(https:\/\/github\.com\/changesets\/bot\/new\/test\?filename=\.changeset/)
         return true;
       })
       .reply(200);
@@ -158,10 +173,12 @@ describe.skip("changeset-bot", () => {
   });
 
   it("shouldn't add a comment to a release pull request", async () => {
-    nock("https://api.github.com").reply(() => {
-      // shouldn't reach this, but if it does - let it fail
-      expect(true).toBe(false);
-    });
+      nock("https://api.github.com")
+          .post()
+          .reply(() => {
+              // shouldn't reach this, but if it does - let it fail
+              expect(true).toBe(false);
+          });
 
     await probot.receive({
       name: "pull_request",
