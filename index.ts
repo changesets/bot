@@ -75,9 +75,9 @@ const getApproveMessage = (
   commitSha: string,
   addChangesetUrl: string,
   releasePlan: ReleasePlan | null
-) => `### ✅ Changeset detected!
+) => `### ✅ Changeset detected [ⓘ](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md)
 
-[More Info](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md) • [Add Another Changeset](${addChangesetUrl})
+[Add Another Changeset](${addChangesetUrl})
 
 ${getReleasePlanMessage(releasePlan)}
 `;
