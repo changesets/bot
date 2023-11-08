@@ -34,14 +34,14 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
     }),
   ]);
 
-  return `<details><summary>This PR includes ${
+  return `<details><summary>This PR ${
     releasePlan.changesets.length
-      ? `changesets to release ${
+      ? `will increment versioning on the next release of the following ${
           publishableReleases.length === 1
-            ? "1 package"
+            ? "package"
             : `${publishableReleases.length} packages`
         }`
-      : "no changesets"
+      : "includes no changesets"
   }</summary>
 
   ${
@@ -75,9 +75,9 @@ const getApproveMessage = (
   commitSha: string,
   addChangesetUrl: string,
   releasePlan: ReleasePlan | null
-) => `### Changeset detected!  🦋  🦋  🦋  
+) => `### ✅ Changeset detected!
 
-✅ The changes in this PR will be included in the next version bump. [More Info](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md) • [Add Another Changeset](${addChangesetUrl})
+[More Info](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md) • [Add Another Changeset](${addChangesetUrl})
 
 ${getReleasePlanMessage(releasePlan)}
 `;
