@@ -190,7 +190,7 @@ export let getChangedPackages = async ({
     changedPackages: (packages.tool === "root"
       ? packages.packages
       : packages.packages.filter((pkg) =>
-          changedFiles.some((changedFile) => changedFile.includes(pkg.dir))
+          changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`))
         )
     ).map((x) => x.packageJson.name),
     releasePlan,
