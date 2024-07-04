@@ -123,8 +123,8 @@ const hasChangesetBeenAdded = (
     files.data.some(
       (file) =>
         file.status === "added" &&
-        /^\.changeset\/.+\.md$/.test(file.filename) &&
-        file.filename !== ".changeset/README.md"
+        /\.changeset\/.+\.md$/.test(file.filename) &&
+        !file.filename.endsWith(".changeset/README.md")
     )
   );
 
