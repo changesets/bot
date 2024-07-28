@@ -34,14 +34,14 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
     }),
   ]);
 
-  return `<details><summary>This PR includes ${
+  return `<details><summary>This PR ${
     releasePlan.changesets.length
-      ? `changesets to release ${
+      ? `will increment versioning on the next release of the following ${
           publishableReleases.length === 1
-            ? "1 package"
+            ? "package"
             : `${publishableReleases.length} packages`
         }`
-      : "no changesets"
+      : "includes no changesets"
   }</summary>
 
   ${
@@ -57,11 +57,11 @@ const getAbsentMessage = (
   commitSha: string,
   addChangesetUrl: string,
   releasePlan: ReleasePlan | null
-) => `###  ⚠️  No Changeset found
+) => `###  ⚠️  No Changeset found  ⚠️
 
 Latest commit: ${commitSha}
 
-Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+Merging this PR will **not** cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
 
 ${getReleasePlanMessage(releasePlan)}
 
@@ -75,18 +75,11 @@ const getApproveMessage = (
   commitSha: string,
   addChangesetUrl: string,
   releasePlan: ReleasePlan | null
-) => `###  🦋  Changeset detected
+) => `### ✅ Changeset detected [ⓘ](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md)
 
-Latest commit: ${commitSha}
-
-**The changes in this PR will be included in the next version bump.**
+[Add Another Changeset](${addChangesetUrl})
 
 ${getReleasePlanMessage(releasePlan)}
-
-Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
-
-[Click here if you're a maintainer who wants to add another changeset to this PR](${addChangesetUrl})
-
 `;
 
 const getNewChangesetTemplate = (changedPackages: string[], title: string) =>
