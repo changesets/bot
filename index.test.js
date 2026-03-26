@@ -1,171 +1,131 @@
-const nock = require("nock");
-const { Probot } = require("probot");
-const outdent = require("outdent");
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
-const changesetBot = require(".");
+import * as getChangedPackagesModule from "./get-changed-packages";
+import changesetBot from "./index";
 
-const pullRequestOpen = require("./test/fixtures/pull_request.opened");
-const pullRequestSynchronize = require("./test/fixtures/pull_request.synchronize");
-const releasePullRequestOpen = require("./test/fixtures/release_pull_request.opened");
+import pullRequestOpen from "./test/fixtures/pull_request.opened.json";
+import pullRequestSynchronize from "./test/fixtures/pull_request.synchronize.json";
+import releasePullRequestOpen from "./test/fixtures/release_pull_request.opened.json";
 
-nock.disableNetConnect();
+describe("changeset-bot", () => {
+  let handler;
+  let getChangedPackagesSpy;
 
-/*
-Oh god none of these tests work - we should really do something about having this tested
-*/
-describe.skip("changeset-bot", () => {
-  let probot;
+  const createOctokitMock = () => ({
+    issues: {
+      listComments: vi.fn().mockResolvedValue({ data: [] }),
+      createComment: vi.fn().mockResolvedValue({}),
+      updateComment: vi.fn().mockResolvedValue({}),
+    },
+    pulls: {
+      listFiles: vi.fn().mockResolvedValue({
+        data: [
+          { filename: ".changeset/something/changes.md", status: "added" },
+        ],
+      }),
+      listCommits: vi.fn().mockResolvedValue({ data: [{ sha: "ABCDE" }] }),
+    },
+  });
 
   beforeEach(() => {
-    probot = new Probot({});
-    const app = probot.load(changesetBot);
+    vi.restoreAllMocks();
 
-    // just return a test token
-    app.app = () => "test.ts";
+    // Default spy implementation (can be overridden per test)
+    getChangedPackagesSpy = vi
+      .spyOn(getChangedPackagesModule, "getChangedPackages")
+      .mockResolvedValue({
+        changedPackages: ["@fake-scope/fake-pkg"],
+        releasePlan: null,
+      });
+
+    const app = {
+      auth: vi.fn().mockResolvedValue({
+        apps: {
+          createInstallationAccessToken: vi.fn().mockResolvedValue({
+            data: { token: "fake-token" },
+          }),
+        },
+      }),
+      log: vi.fn(),
+      on: vi.fn(),
+    };
+
+    changesetBot(app);
+
+    const call = app.on.mock.calls.find((c) => {
+      const events = c[0];
+      return (
+        Array.isArray(events) && events.some((e) => e.includes("pull_request"))
+      );
+    });
+
+    if (!call) throw new Error("pull_request handler not registered");
+    handler = call[1];
   });
 
-  it("should add a comment when there is no comment", async () => {
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
-      .reply(200, []);
-
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
-      .reply(200, [
-        { filename: ".changeset/something/changes.md", status: "added" }
-      ]);
-
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
-
-    nock("https://api.github.com")
-      .post("/repos/pyu/testing-things/issues/1/comments", body => {
-        expect(body.comment_id).toBeNull();
-        return true;
-      })
-      .reply(200);
-
-    await probot.receive({
-      name: "pull_request",
-      payload: pullRequestOpen
-    });
+  it("exports a handler", () => {
+    expect(handler).toBeTypeOf("function");
   });
 
-  it("should update a comment when there is a comment", async () => {
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
-      .reply(200, [
-        {
-          id: 7,
-          user: {
-            login: "changeset-bot[bot]"
-          }
-        }
-      ]);
+  it("should add a comment when there is no previous bot comment and changeset exists", async () => {
+    const octokit = createOctokitMock();
 
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
-      .reply(200, [
-        { filename: ".changeset/something/changes.md", status: "added" }
-      ]);
+    await handler({ payload: pullRequestOpen, octokit });
 
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
-
-    nock("https://api.github.com")
-      .patch("/repos/pyu/testing-things/issues/comments/7", body => {
-        expect(body.number).toBe(1);
-        return true;
-      })
-      .reply(200);
-
-    await probot.receive({
-      name: "pull_request",
-      payload: pullRequestSynchronize
-    });
+    expect(octokit.issues.createComment).toHaveBeenCalled();
+    expect(octokit.issues.updateComment).not.toHaveBeenCalled();
+    expect(octokit.issues.createComment).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        issue_number: pullRequestOpen.number,
+        body: expect.stringContaining("Changeset detected"),
+      }),
+    );
   });
 
-  it("should show correct message if there is a changeset", async () => {
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
-      .reply(200, []);
+  it("should update an existing bot comment on synchronize", async () => {
+    const octokit = createOctokitMock();
 
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
-      .reply(200, [
-        { filename: ".changeset/something/changes.md", status: "added" }
-      ]);
-
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
-
-    nock("https://api.github.com")
-      .post("/repos/pyu/testing-things/issues/1/comments", ({ body }) => {
-        expect(body).toEqual(outdent`
-          ###  🦋  Changeset is good to go
-
-          Latest commit: ABCDE
-
-          **We got this.**
-
-          Not sure what this means? [Click here  to learn what changesets are](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).`);
-        return true;
-      })
-      .reply(200);
-
-    await probot.receive({
-      name: "pull_request",
-      payload: pullRequestOpen
+    octokit.issues.listComments.mockResolvedValue({
+      data: [{ id: 7, user: { login: "changeset-bot[bot]" } }],
     });
+
+    await handler({ payload: pullRequestSynchronize, octokit });
+
+    expect(octokit.issues.updateComment).toHaveBeenCalled();
+    expect(octokit.issues.updateComment).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        comment_id: 7,
+        body: expect.stringContaining("Changeset detected"),
+      }),
+    );
   });
 
-  it("should show correct message if there is no changeset", async () => {
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/issues/1/comments")
-      .reply(200, []);
+  it("does not comment on release pull requests", async () => {
+    const octokit = createOctokitMock();
 
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/files")
-      .reply(200, [{ filename: "index.js", status: "added" }]);
+    await handler({ payload: releasePullRequestOpen, octokit });
 
-    nock("https://api.github.com")
-      .get("/repos/pyu/testing-things/pulls/1/commits")
-      .reply(200, [{ sha: "ABCDE" }]);
-
-    nock("https://api.github.com")
-      .post("/repos/pyu/testing-things/issues/1/comments", ({ body }) => {
-        expect(body).toEqual(outdent`
-          ###  💥  No Changeset
-
-          Latest commit: ABCDE
-
-          Merging this PR will not cause any packages to be released. If these changes should not cause updates to packages in this repo, this is fine 🙂
-
-          **If these changes should be published to npm, you need to add a changeset.**
-
-          [Click here to learn what changesets are, and how to add one](https://github.com/Noviny/changesets/blob/master/docs/adding-a-changeset.md).`);
-        return true;
-      })
-      .reply(200);
-
-    await probot.receive({
-      name: "pull_request",
-      payload: pullRequestOpen
-    });
+    expect(octokit.issues.listComments).not.toHaveBeenCalled();
+    expect(octokit.issues.createComment).not.toHaveBeenCalled();
+    expect(octokit.issues.updateComment).not.toHaveBeenCalled();
   });
 
-  it("shouldn't add a comment to a release pull request", async () => {
-    nock("https://api.github.com").reply(() => {
-      // shouldn't reach this, but if it does - let it fail
-      expect(true).toBe(false);
+  it("handles getChangedPackages failure gracefully", async ({
+    onTestFinished,
+  }) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => {
+      errorSpy.mockClear();
     });
 
-    await probot.receive({
-      name: "pull_request",
-      payload: releasePullRequestOpen
-    });
+    const octokit = createOctokitMock();
+
+    getChangedPackagesSpy.mockRejectedValue(new Error("boom"));
+
+    await handler({ payload: pullRequestOpen, octokit });
+
+    expect(octokit.issues.createComment).toHaveBeenCalled();
   });
 });
