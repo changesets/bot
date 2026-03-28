@@ -11,13 +11,14 @@ on:
       - main
       - next
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   test:
     name: "Test using Node ${{ matrix.node_version }}"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 20
     strategy:
       matrix:
