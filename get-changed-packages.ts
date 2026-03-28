@@ -1,13 +1,14 @@
 import nodePath from "path";
-import micromatch from "micromatch";
-import { ProbotOctokit } from "probot";
-import fetch from "node-fetch";
-import { safeLoad } from "js-yaml";
-import { Packages, Tool } from "@manypkg/get-packages";
+
 import assembleReleasePlan from "@changesets/assemble-release-plan";
 import { parse as parseConfig } from "@changesets/config";
-import { PreState, NewChangeset } from "@changesets/types";
 import parseChangeset from "@changesets/parse";
+import { PreState, NewChangeset } from "@changesets/types";
+import { Packages, Tool } from "@manypkg/get-packages";
+import { safeLoad } from "js-yaml";
+import micromatch from "micromatch";
+import fetch from "node-fetch";
+import { ProbotOctokit } from "probot";
 
 export let getChangedPackages = async ({
   owner,
@@ -25,19 +26,14 @@ export let getChangedPackages = async ({
   installationToken: string;
 }) => {
   let hasErrored = false;
-  let encodedCredentials = Buffer.from(
-    `x-access-token:${installationToken}`
-  ).toString("base64");
+  let encodedCredentials = Buffer.from(`x-access-token:${installationToken}`).toString("base64");
 
   function fetchFile(path: string) {
-    return fetch(
-      `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`,
-      {
-        headers: {
-          Authorization: `Basic ${encodedCredentials}`,
-        },
-      }
-    );
+    return fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`, {
+      headers: {
+        Authorization: `Basic ${encodedCredentials}`,
+      },
+    });
   }
 
   function fetchJsonFile(path: string) {
@@ -107,7 +103,7 @@ export let getChangedPackages = async ({
       changesetPromises.push(
         fetchTextFile(item.path).then((text) => {
           return { ...parseChangeset(text), id };
-        })
+        }),
       );
     }
   }
@@ -138,10 +134,7 @@ export let getChangedPackages = async ({
           globs: rootPackageJsonContent.workspaces,
         };
       }
-    } else if (
-      rootPackageJsonContent.bolt &&
-      rootPackageJsonContent.bolt.workspaces
-    ) {
+    } else if (rootPackageJsonContent.bolt && rootPackageJsonContent.bolt.workspaces) {
       tool = {
         tool: "bolt",
         globs: rootPackageJsonContent.bolt.workspaces,
@@ -161,17 +154,12 @@ export let getChangedPackages = async ({
   };
 
   if (tool) {
-    if (
-      !Array.isArray(tool.globs) ||
-      !tool.globs.every((x) => typeof x === "string")
-    ) {
+    if (!Array.isArray(tool.globs) || !tool.globs.every((x) => typeof x === "string")) {
       throw new Error("globs are not valid: " + JSON.stringify(tool.globs));
     }
     let matches = micromatch(potentialWorkspaceDirectories, tool.globs);
 
-    packages.packages = await Promise.all(
-      matches.map((dir) => getPackage(dir))
-    );
+    packages.packages = await Promise.all(matches.map((dir) => getPackage(dir)));
   } else {
     packages.packages.push(packages.root);
   }
@@ -183,14 +171,14 @@ export let getChangedPackages = async ({
     await Promise.all(changesetPromises),
     packages,
     await configPromise.then((rawConfig) => parseConfig(rawConfig, packages)),
-    await preStatePromise
+    await preStatePromise,
   );
 
   return {
     changedPackages: (packages.tool === "root"
       ? packages.packages
       : packages.packages.filter((pkg) =>
-          changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`))
+          changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`)),
         )
     ).map((x) => x.packageJson.name),
     releasePlan,

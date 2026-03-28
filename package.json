@@ -1,11 +1,13 @@
 {
   "name": "@changesets/bot",
   "version": "0.1.0",
-  "license": "MIT",
   "private": true,
-  "repository": "https://github.com/changesets/bot",
   "homepage": "https://github.com/apps/changeset-bot",
+  "license": "MIT",
+  "repository": "https://github.com/changesets/bot",
   "scripts": {
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "test": "vitest"
   },
   "dependencies": {
@@ -34,6 +36,7 @@
   },
   "devDependencies": {
     "msw": "^2.12.14",
+    "oxfmt": "^0.42.0",
     "vitest": "^4.1.1"
   },
   "resolutions": {
