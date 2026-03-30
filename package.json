@@ -35,5 +35,8 @@
     "msw": "^2.12.14",
     "vitest": "^4.1.1"
   },
+  "resolutions": {
+    "vite": "npm:vite@8.0.0-beta.18"
+  },
   "packageManager": "yarn@1.22.22"
 }
