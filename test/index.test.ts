@@ -1,25 +1,34 @@
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
 import { generateKeyPairSync } from "crypto";
-
+import { Probot } from "probot";
 import {
-  describe,
-  it,
-  expect,
+  aroundEach,
   beforeAll,
-  afterAll,
-  beforeEach,
-  afterEach,
+  describe,
+  expect,
+  it,
   vi,
 } from "vitest";
-import { setupServer } from "msw/node";
-import { http, HttpResponse } from "msw";
-import { Probot } from "probot";
 
 import changesetBot from "../index";
 import pullRequestOpen from "./fixtures/pull_request.opened.json";
 import pullRequestSynchronize from "./fixtures/pull_request.synchronize.json";
 import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json";
 
-const server = setupServer();
+function setupMswServer() {
+  const server = setupServer();
+  beforeAll(() => {
+    server.listen({ onUnhandledRequest: "error" });
+    return () => {
+      server.close()
+    }
+  });
+  aroundEach((runTest) => server.boundary(runTest)())
+  return server;
+}
+
+const server = setupMswServer();
 
 // Probot validates the privateKey locally
 //  so we must generate a valid key
@@ -67,20 +76,15 @@ const normalizeCommentBody = (body: string) =>
     "filename=.changeset/<CHANGESET_FILE>.md",
   );
 
+function setupProbot() {
+  const probot = new Probot({ appId: 123, privateKey });
+  changesetBot(probot)
+  return probot
+}
+
 describe("changeset-bot", () => {
-  let probot: Probot;
-
-  beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-  afterEach(() => server.resetHandlers());
-  afterAll(() => server.close());
-
-  beforeEach(() => {
-    probot = new Probot({ appId: 123, privateKey });
-
-    probot.load(changesetBot);
-  });
-
   it("adds a comment when there is no comment", async () => {
+    const probot = setupProbot();
     const createCommentSpy = vi.fn();
 
     // Mock all GitHub endpoints used by the handler
@@ -129,6 +133,7 @@ describe("changeset-bot", () => {
   });
 
   it("should update a comment when there is a comment", async () => {
+    const probot = setupProbot();
     const updateCommentSpy = vi.fn();
 
     server.use(
@@ -180,6 +185,7 @@ describe("changeset-bot", () => {
   });
 
   it("should show correct message if there is a changeset", async () => {
+    const probot = setupProbot();
     const updateCommentSpy = vi.fn();
 
     server.use(
@@ -241,6 +247,7 @@ describe("changeset-bot", () => {
   });
 
   it("should show correct message if there is no changeset", async () => {
+    const probot = setupProbot();
     const updateCommentSpy = vi.fn();
 
     server.use(
@@ -304,6 +311,7 @@ describe("changeset-bot", () => {
   });
 
   it("shouldn't add a comment to a release pull request", async () => {
+    const probot = setupProbot();
     const requestSpy = vi.fn();
 
     server.use(
