@@ -15,15 +15,11 @@ permissions: {}
 
 jobs:
   test:
-    name: "Test using Node ${{ matrix.node_version }}"
+    name: Test
     runs-on: ubuntu-latest
     permissions:
       contents: read
     timeout-minutes: 20
-    strategy:
-      matrix:
-        node_version: [20, 22, 24]
-      fail-fast: false
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # 6.0.1
@@ -32,8 +28,6 @@ jobs:
 
       - name: Setup dependencies
         uses: ./.github/actions/ci-setup
-        with:
-          node-version: ${{ matrix.node_version }}
 
       - name: Run test
         run: yarn test
