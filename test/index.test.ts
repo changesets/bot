@@ -61,6 +61,12 @@ const repositoryContentRoutes = [
   ),
 ];
 
+const normalizeCommentBody = (body: string) =>
+  body.replace(
+    /filename=\.changeset\/[^)&\s]+?\.md/g,
+    "filename=.changeset/<CHANGESET_FILE>.md",
+  );
+
 describe("changeset-bot", () => {
   let probot: Probot;
 
@@ -212,14 +218,26 @@ describe("changeset-bot", () => {
     const updateCommentResponse = updateCommentSpy.mock.calls[0][0];
     expect(updateCommentResponse).toHaveProperty("body");
 
-    // can't use snapshot since changeset filename is different on each run
-    expect(updateCommentResponse.body).toContain("###  🦋  Changeset detected");
-    expect(updateCommentResponse.body).toContain(
-      "Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540",
-    );
-    expect(updateCommentResponse.body).toContain(
-      "**The changes in this PR will be included in the next version bump.**",
-    );
+    expect(normalizeCommentBody(updateCommentResponse.body))
+      .toMatchInlineSnapshot(`
+        "###  🦋  Changeset detected
+
+        Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+        **The changes in this PR will be included in the next version bump.**
+
+        <details><summary>This PR includes no changesets</summary>
+
+          When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+        </details>
+
+        Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+        [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
+
+        "
+      `);
   });
 
   it("should show correct message if there is no changeset", async () => {
@@ -263,14 +281,26 @@ describe("changeset-bot", () => {
     const updateCommentResponse = updateCommentSpy.mock.calls[0][0];
     expect(updateCommentResponse).toHaveProperty("body");
 
-    // can't use snapshot since changeset filename is different on each run
-    expect(updateCommentResponse.body).toContain("###  ⚠️  No Changeset found");
-    expect(updateCommentResponse.body).toContain(
-      "Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540",
-    );
-    expect(updateCommentResponse.body).toContain(
-      "Merging this PR will not cause a version bump for any packages.",
-    );
+    expect(normalizeCommentBody(updateCommentResponse.body))
+      .toMatchInlineSnapshot(`
+        "###  ⚠️  No Changeset found
+
+        Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+        Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+
+        <details><summary>This PR includes no changesets</summary>
+
+          When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+        </details>
+
+        [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+        [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
+
+        "
+      `);
   });
 
   it("shouldn't add a comment to a release pull request", async () => {
