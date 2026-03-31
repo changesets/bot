@@ -4,10 +4,10 @@ on:
   pull_request:
   push:
     branches:
-      - main
+      - master
   merge_group:
     branches:
-      - main
+      - master
 
 permissions: {}
 
