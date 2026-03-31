@@ -97,7 +97,7 @@ ${changedPackages.map((x) => `"${x}": patch`).join("\n")}
 ${title}
 `);
 
-type PRContext = EmitterWebhookEvent<
+export type PRContext = EmitterWebhookEvent<
   "pull_request.opened" | "pull_request.synchronize"
 > &
   Omit<Context, keyof EmitterWebhookEvent>;

@@ -1,30 +1,36 @@
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { generateKeyPairSync } from "crypto";
+import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { Probot } from "probot";
-import {
-  aroundEach,
-  beforeAll,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { aroundEach, beforeAll, describe, expect, it } from "vitest";
 
-import changesetBot from "../index";
+import changesetBot, { PRContext } from "../index";
 import pullRequestOpen from "./fixtures/pull_request.opened.json";
 import pullRequestSynchronize from "./fixtures/pull_request.synchronize.json";
 import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json";
+
+// TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
+// related thread: github.com/microsoft/TypeScript/issues/36554
+function isArray<T>(
+  arg: T | {},
+): arg is T extends readonly any[]
+  ? unknown extends T
+    ? never
+    : readonly any[]
+  : any[] {
+  return Array.isArray(arg);
+}
 
 function setupMswServer() {
   const server = setupServer();
   beforeAll(() => {
     server.listen({ onUnhandledRequest: "error" });
     return () => {
-      server.close()
-    }
+      server.close();
+    };
   });
-  aroundEach((runTest) => server.boundary(runTest)())
+  aroundEach((runTest) => server.boundary(runTest)());
   return server;
 }
 
@@ -45,30 +51,7 @@ const { privateKey } = generateKeyPairSync("rsa", {
 });
 
 const githubRepoBase = "https://api.github.com/repos/changesets/bot";
-const githubRawContentBase = "https://raw.githubusercontent.com/changesets/bot";
 const githubAppBase = "https://api.github.com/app/installations";
-
-const githubAuthRoute = http.post(
-  `${githubAppBase}/:installationId/access_tokens`,
-  () => HttpResponse.json({ token: "test" }),
-);
-
-const repositoryContentRoutes = [
-  // get repo tree (used in getChangedPackages)
-  http.get(`${githubRepoBase}/git/trees/test`, () =>
-    HttpResponse.json({ tree: [{ path: "package.json" }] }),
-  ),
-
-  // get package.json content
-  http.get(`${githubRawContentBase}/test/package.json`, () =>
-    HttpResponse.json({ name: "test", workspaces: ["packages/*"] }),
-  ),
-
-  // get changeset config
-  http.get(`${githubRawContentBase}/test/.changeset/config.json`, () =>
-    HttpResponse.json([{}]),
-  ),
-];
 
 const normalizeCommentBody = (body: string) =>
   body.replace(
@@ -76,254 +59,388 @@ const normalizeCommentBody = (body: string) =>
     "filename=.changeset/<CHANGESET_FILE>.md",
   );
 
+type ChangedFile = {
+  status: "added";
+  content: string;
+};
+
+type FileState = string | ChangedFile;
+
+type CommentState = {
+  id: number;
+  user: { login: string };
+};
+
+type PrState = {
+  files: Record<string, FileState>;
+  comments?: CommentState[];
+};
+
+type RecordedRequest = {
+  method: string;
+  path: string;
+  body?: unknown;
+};
+
+function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
+  const requests: RecordedRequest[] = [];
+
+  const recordRequest = async (
+    request: Request,
+    mapper?: (body: unknown) => unknown,
+  ) => {
+    let body: unknown;
+
+    if (!["GET", "HEAD"].includes(request.method)) {
+      const text = await request.text();
+      if (text) {
+        try {
+          body = JSON.parse(text);
+        } catch {
+          body = text;
+        }
+      }
+      if (mapper) {
+        body = mapper(body);
+      }
+    }
+
+    requests.push({
+      method: request.method,
+      path: new URL(request.url).pathname,
+      body,
+    });
+  };
+
+  server.use(
+    http.post(
+      `${githubAppBase}/:installationId/access_tokens`,
+      async ({ request }) => {
+        await recordRequest(request);
+        return HttpResponse.json({ token: "test" });
+      },
+    ),
+    http.get(`${githubRepoBase}/git/trees/:ref`, async ({ request }) => {
+      await recordRequest(request);
+      return HttpResponse.json({
+        tree: Object.keys(state.files).map((path) => ({ path })),
+        truncated: false,
+      });
+    }),
+    http.get(`${githubRepoBase}/issues/2/comments`, async ({ request }) => {
+      await recordRequest(request);
+      return HttpResponse.json(state.comments ?? []);
+    }),
+    http.get(`${githubRepoBase}/pulls/2/files`, async ({ request }) => {
+      await recordRequest(request);
+      // we only use those 2 fields right now, so we don't bother with the rest of the type
+      const changedFiles: Pick<
+        Awaited<
+          ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>
+        >["data"][number],
+        "filename" | "status"
+      >[] = [];
+      for (const [filename, file] of Object.entries(state.files)) {
+        if (typeof file !== "string") {
+          changedFiles.push({
+            filename,
+            status: file.status,
+          });
+        }
+      }
+      return HttpResponse.json(changedFiles);
+    }),
+    http.get(
+      "https://raw.githubusercontent.com/changesets/bot/:ref/:path+",
+      async ({ request, params }) => {
+        await recordRequest(request);
+
+        const path = isArray(params.path) ? params.path.join("/") : params.path;
+        assert(path);
+        const file = state.files[path];
+
+        if (file == null) {
+          return new HttpResponse("Not found", { status: 404 });
+        }
+
+        const content = typeof file === "string" ? file : file.content;
+
+        if (path.endsWith(".json")) {
+          return HttpResponse.json(JSON.parse(content));
+        }
+
+        return new HttpResponse(content);
+      },
+    ),
+    http.post(`${githubRepoBase}/issues/2/comments`, async ({ request }) => {
+      await recordRequest(request, (body) => {
+        assert(
+          !!body &&
+            typeof body === "object" &&
+            "body" in body &&
+            typeof body.body === "string",
+        );
+        return { ...body, body: normalizeCommentBody(body.body) };
+      });
+      return HttpResponse.json({});
+    }),
+    http.patch(
+      `${githubRepoBase}/issues/comments/:commentId`,
+      async ({ request }) => {
+        await recordRequest(request, (body) => {
+          assert(
+            !!body &&
+              typeof body === "object" &&
+              "body" in body &&
+              typeof body.body === "string",
+          );
+          return { ...body, body: normalizeCommentBody(body.body) };
+        });
+        return HttpResponse.json({});
+      },
+    ),
+  );
+
+  return { requests };
+}
+
+const baseFiles = {
+  "package.json": JSON.stringify({
+    name: "test",
+    workspaces: ["packages/*"],
+  }),
+  ".changeset/config.json": JSON.stringify({}),
+};
+
 function setupProbot() {
   const probot = new Probot({ appId: 123, privateKey });
-  changesetBot(probot)
-  return probot
+  changesetBot(probot);
+  return probot;
 }
 
 describe("changeset-bot", () => {
   it("adds a comment when there is no comment", async () => {
     const probot = setupProbot();
-    const createCommentSpy = vi.fn();
-
-    // Mock all GitHub endpoints used by the handler
-    server.use(
-      githubAuthRoute,
-
-      ...repositoryContentRoutes,
-
-      // list comments
-      http.get(`${githubRepoBase}/issues/2/comments`, () =>
-        HttpResponse.json([]),
-      ),
-
-      // list changed files
-      http.get(`${githubRepoBase}/pulls/2/files`, () =>
-        HttpResponse.json([
-          { filename: ".changeset/something-changed.md", status: "added" },
-        ]),
-      ),
-
-      // get latest commits
-      http.get(`${githubRepoBase}/pulls/2/commits`, () =>
-        HttpResponse.json([{ sha: "ABCDE" }]),
-      ),
-
-      // create comment
-      http.post(`${githubRepoBase}/issues/2/comments`, async ({ request }) => {
-        const body = await request.json();
-        createCommentSpy(body);
-        return new HttpResponse({}, { status: 200 });
-      }),
-    );
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        ".changeset/something-changed.md": {
+          status: "added",
+          content: "---\n---\n",
+        },
+      },
+      comments: [],
+    });
 
     await probot.receive({
       name: "pull_request",
       payload: pullRequestOpen,
     } as never);
 
-    // Assert a comment was created
-    expect(createCommentSpy).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        body: expect.stringContaining("###  🦋  Changeset detected"),
-      }),
+    const commentRequests = requests.filter((request) =>
+      request.path.includes("/comments"),
     );
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  🦋  Changeset detected
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      **The changes in this PR will be included in the next version bump.**
+
+      <details><summary>This PR includes changesets to release 0 packages</summary>
+
+        When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+      </details>
+
+      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+      [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
+
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
   });
 
   it("should update a comment when there is a comment", async () => {
     const probot = setupProbot();
-    const updateCommentSpy = vi.fn();
-
-    server.use(
-      githubAuthRoute,
-
-      ...repositoryContentRoutes,
-
-      // list comments
-      http.get(`${githubRepoBase}/issues/2/comments`, () =>
-        HttpResponse.json([
-          {
-            id: 7,
-            user: { login: "changeset-bot[bot]" },
-          },
-        ]),
-      ),
-
-      // list changed files
-      http.get(`${githubRepoBase}/pulls/2/files`, () =>
-        HttpResponse.json([
-          { filename: ".changeset/something/changes.md", status: "added" },
-        ]),
-      ),
-
-      // get latest commits
-      http.get(`${githubRepoBase}/pulls/2/commits`, () =>
-        HttpResponse.json([{ sha: "ABCDE" }]),
-      ),
-
-      // update comments
-      http.patch(`${githubRepoBase}/issues/comments/7`, async ({ request }) => {
-        const body = await request.json();
-        updateCommentSpy(body);
-        return new HttpResponse(null, { status: 200 });
-      }),
-    );
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        ".changeset/something/changes.md": {
+          status: "added",
+          content: "---\n---\n",
+        },
+      },
+      comments: [
+        {
+          id: 7,
+          user: { login: "changeset-bot[bot]" },
+        },
+      ],
+    });
 
     await probot.receive({
       name: "pull_request",
       payload: pullRequestSynchronize,
     } as never);
 
-    expect(updateCommentSpy).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        issue_number: 2,
-      }),
+    const commentRequests = requests.filter(
+      (request) =>
+        request.path.includes("/comments") && request.method === "PATCH",
     );
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  🦋  Changeset detected
+
+      Latest commit: 10a63035fe8155b86b1060c89873e9a03c6fe673
+
+      **The changes in this PR will be included in the next version bump.**
+
+      <details><summary>This PR includes changesets to release 0 packages</summary>
+
+        When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+      </details>
+
+      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+      [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
+
+      ",
+            "issue_number": 2,
+          },
+          "method": "PATCH",
+          "path": "/repos/changesets/bot/issues/comments/7",
+        },
+      ]
+    `);
   });
 
   it("should show correct message if there is a changeset", async () => {
     const probot = setupProbot();
-    const updateCommentSpy = vi.fn();
-
-    server.use(
-      githubAuthRoute,
-
-      ...repositoryContentRoutes,
-
-      http.get(`${githubRepoBase}/issues/2/comments`, () =>
-        HttpResponse.json([]),
-      ),
-
-      http.get(`${githubRepoBase}/pulls/2/files`, () =>
-        HttpResponse.json([
-          { filename: ".changeset/something/changes.md", status: "added" },
-        ]),
-      ),
-
-      http.get(`${githubRepoBase}/pulls/2/commits`, () =>
-        HttpResponse.json([{ sha: "ABCDE" }]),
-      ),
-
-      http.post(`${githubRepoBase}/issues/2/comments`, async ({ request }) => {
-        const body = await request.json();
-        updateCommentSpy(body);
-        return new HttpResponse(null, { status: 200 });
-      }),
-    );
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        ".changeset/something/changes.md": {
+          status: "added",
+          content: "---\n---\n",
+        },
+      },
+      comments: [],
+    });
 
     await probot.receive({
       name: "pull_request",
       payload: pullRequestOpen,
     } as never);
 
-    expect(updateCommentSpy).toHaveBeenCalledTimes(1);
+    const commentRequests = requests.filter((request) =>
+      request.path.includes("/comments"),
+    );
 
-    const updateCommentResponse = updateCommentSpy.mock.calls[0][0];
-    expect(updateCommentResponse).toHaveProperty("body");
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  🦋  Changeset detected
 
-    expect(normalizeCommentBody(updateCommentResponse.body))
-      .toMatchInlineSnapshot(`
-        "###  🦋  Changeset detected
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
-        Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+      **The changes in this PR will be included in the next version bump.**
 
-        **The changes in this PR will be included in the next version bump.**
+      <details><summary>This PR includes changesets to release 0 packages</summary>
 
-        <details><summary>This PR includes no changesets</summary>
+        When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
 
-          When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+      </details>
 
-        </details>
+      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
 
-        Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
-        [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
-
-        "
-      `);
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
   });
 
   it("should show correct message if there is no changeset", async () => {
     const probot = setupProbot();
-    const updateCommentSpy = vi.fn();
-
-    server.use(
-      githubAuthRoute,
-
-      ...repositoryContentRoutes,
-
-      // list comments
-      http.get(`${githubRepoBase}/issues/2/comments`, () =>
-        HttpResponse.json([]),
-      ),
-
-      // list changed files
-      http.get(`${githubRepoBase}/pulls/2/files`, () =>
-        HttpResponse.json([{ filename: "index.js", status: "added" }]),
-      ),
-
-      // get latest commits
-      http.get(`${githubRepoBase}/pulls/2/commits`, () =>
-        HttpResponse.json([{ sha: "ABCDE" }]),
-      ),
-
-      // update comment
-      http.post(`${githubRepoBase}/issues/2/comments`, async ({ request }) => {
-        const body = await request.json();
-        updateCommentSpy(body);
-        return new HttpResponse(null, { status: 200 });
-      }),
-    );
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        "index.js": {
+          status: "added",
+          content: "console.log('test');",
+        },
+      },
+      comments: [],
+    });
 
     await probot.receive({
       name: "pull_request",
       payload: pullRequestOpen,
     } as never);
 
-    expect(updateCommentSpy).toHaveBeenCalledTimes(1);
+    const commentRequests = requests.filter((request) =>
+      request.path.includes("/comments"),
+    );
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  ⚠️  No Changeset found
 
-    const updateCommentResponse = updateCommentSpy.mock.calls[0][0];
-    expect(updateCommentResponse).toHaveProperty("body");
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
-    expect(normalizeCommentBody(updateCommentResponse.body))
-      .toMatchInlineSnapshot(`
-        "###  ⚠️  No Changeset found
+      Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
 
-        Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+      <details><summary>This PR includes no changesets</summary>
 
-        Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+        When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
 
-        <details><summary>This PR includes no changesets</summary>
+      </details>
 
-          When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
 
-        </details>
+      [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
-        [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
-
-        [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
-
-        "
-      `);
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
   });
 
   it("shouldn't add a comment to a release pull request", async () => {
     const probot = setupProbot();
-    const requestSpy = vi.fn();
-
-    server.use(
-      githubAuthRoute,
-      http.all("https://api.github.com/*", requestSpy),
-    );
+    const { requests } = usePrState(server, {
+      files: baseFiles,
+      comments: [],
+    });
 
     await probot.receive({
       name: "pull_request",
       payload: releasePullRequestOpen,
     } as never);
 
-    expect(requestSpy).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(0);
   });
 });
