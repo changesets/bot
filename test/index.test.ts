@@ -445,6 +445,253 @@ describe.concurrent("changeset-bot", () => {
     `);
   });
 
+  it("uses the root package when no workspace tool is detected", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        "package.json": JSON.stringify({
+          name: "root-package",
+        }),
+        ".changeset/config.json": JSON.stringify({}),
+        "src/index.ts": {
+          status: "added",
+          content: "export {};",
+        },
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) =>
+      request.path.includes("/comments"),
+    );
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  ⚠️  No Changeset found
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+
+      <details><summary>This PR includes no changesets</summary>
+
+        When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+      </details>
+
+      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+      [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22root-package%22%3A%20patch%0A---%0A%0Athing%0A)
+
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
+  });
+
+  it("includes only changed yarn workspace packages in the add-changeset link", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+        }),
+        ".changeset/config.json": JSON.stringify({}),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+        }),
+        "packages/b/package.json": JSON.stringify({
+          name: "pkg-b",
+        }),
+        "packages/a/index.ts": {
+          status: "added",
+          content: "export const a = true;",
+        },
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) =>
+      request.path.includes("/comments"),
+    );
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  ⚠️  No Changeset found
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+
+      <details><summary>This PR includes no changesets</summary>
+
+        When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+      </details>
+
+      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+      [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22pkg-a%22%3A%20patch%0A---%0A%0Athing%0A)
+
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
+  });
+
+  it("detects pnpm workspaces when building the add-changeset link", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        "package.json": JSON.stringify({
+          name: "test",
+        }),
+        ".changeset/config.json": JSON.stringify({}),
+        "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+        }),
+        "packages/a/file.ts": {
+          status: "added",
+          content: "export const a = true;",
+        },
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) =>
+      request.path.includes("/comments"),
+    );
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  ⚠️  No Changeset found
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+
+      <details><summary>This PR includes no changesets</summary>
+
+        When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+      </details>
+
+      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+      [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22pkg-a%22%3A%20patch%0A---%0A%0Athing%0A)
+
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
+  });
+
+  it("shows release details when a changed changeset parses into a release plan", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+          version: "1.0.0",
+        }),
+        ".changeset/abc123.md": {
+          status: "added",
+          content: `---
+"pkg-a": patch
+---
+
+add feature
+`,
+        },
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) =>
+      request.path.includes("/comments"),
+    );
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  🦋  Changeset detected
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      **The changes in this PR will be included in the next version bump.**
+
+      <details><summary>This PR includes changesets to release 1 package</summary>
+
+        | Name  | Type  |
+      | ----- | ----- |
+      | pkg-a | Patch |
+
+      </details>
+
+      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+      [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
+
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
+  });
+
   it("shouldn't add a comment to a release pull request", async ({
     expect,
     task,
