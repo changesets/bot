@@ -2,8 +2,8 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { Probot } from "probot";
-import { aroundEach, beforeAll, describe, expect, it } from "vitest";
+import { Probot, ProbotOctokit } from "probot";
+import { aroundEach, beforeAll, describe, it } from "vitest";
 
 import changesetBot, { PRContext } from "../index";
 import pullRequestOpen from "./fixtures/pull_request.opened.json";
@@ -212,15 +212,22 @@ const baseFiles = {
   ".changeset/config.json": JSON.stringify({}),
 };
 
-function setupProbot() {
-  const probot = new Probot({ appId: 123, privateKey });
+function setupProbot(testId: string) {
+  // Probot reuses some global state for Octokit instances for the same installation id.
+  // That makes MSW mocking unreliable as requests scheduled by one test can be actually dispatched from the context of another test.
+  const TestOctokit = ProbotOctokit.defaults({
+    throttle: {
+      id: `test-${testId}`,
+    },
+  });
+  const probot = new Probot({ appId: 123, privateKey, Octokit: TestOctokit });
   changesetBot(probot);
   return probot;
 }
 
-describe("changeset-bot", () => {
-  it("adds a comment when there is no comment", async () => {
-    const probot = setupProbot();
+describe.concurrent("changeset-bot", () => {
+  it("adds a comment when there is no comment", async ({ expect, task }) => {
+    const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
@@ -270,8 +277,11 @@ describe("changeset-bot", () => {
     `);
   });
 
-  it("should update a comment when there is a comment", async () => {
-    const probot = setupProbot();
+  it("should update a comment when there is a comment", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
@@ -328,8 +338,11 @@ describe("changeset-bot", () => {
     `);
   });
 
-  it("should show correct message if there is a changeset", async () => {
-    const probot = setupProbot();
+  it("should show correct message if there is a changeset", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
@@ -379,8 +392,11 @@ describe("changeset-bot", () => {
     `);
   });
 
-  it("should show correct message if there is no changeset", async () => {
-    const probot = setupProbot();
+  it("should show correct message if there is no changeset", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
@@ -429,8 +445,11 @@ describe("changeset-bot", () => {
     `);
   });
 
-  it("shouldn't add a comment to a release pull request", async () => {
-    const probot = setupProbot();
+  it("shouldn't add a comment to a release pull request", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: baseFiles,
       comments: [],
