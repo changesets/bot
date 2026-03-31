@@ -59,10 +59,12 @@ const normalizeCommentBody = (body: string) =>
     "filename=.changeset/<CHANGESET_FILE>.md",
   );
 
-type ChangedFile = {
-  status: "added";
-  content: string;
-};
+type ChangedFile = [
+  {
+    status: "added";
+  },
+  string,
+];
 
 type FileState = string | ChangedFile;
 
@@ -144,7 +146,7 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
         if (typeof file !== "string") {
           changedFiles.push({
             filename,
-            status: file.status,
+            status: file[0].status,
           });
         }
       }
@@ -163,7 +165,7 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
           return new HttpResponse("Not found", { status: 404 });
         }
 
-        const content = typeof file === "string" ? file : file.content;
+        const content = typeof file === "string" ? file : file[1];
 
         if (path.endsWith(".json")) {
           return HttpResponse.json(JSON.parse(content));
@@ -231,10 +233,7 @@ describe.concurrent("changeset-bot", () => {
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
-        ".changeset/something-changed.md": {
-          status: "added",
-          content: "---\n---\n",
-        },
+        ".changeset/something-changed.md": [{ status: "added" }, "---\n---\n"],
       },
       comments: [],
     });
@@ -285,10 +284,7 @@ describe.concurrent("changeset-bot", () => {
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
-        ".changeset/something/changes.md": {
-          status: "added",
-          content: "---\n---\n",
-        },
+        ".changeset/something/changes.md": [{ status: "added" }, "---\n---\n"],
       },
       comments: [
         {
@@ -346,10 +342,7 @@ describe.concurrent("changeset-bot", () => {
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
-        ".changeset/something/changes.md": {
-          status: "added",
-          content: "---\n---\n",
-        },
+        ".changeset/something/changes.md": [{ status: "added" }, "---\n---\n"],
       },
       comments: [],
     });
@@ -400,10 +393,7 @@ describe.concurrent("changeset-bot", () => {
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
-        "index.js": {
-          status: "added",
-          content: "console.log('test');",
-        },
+        "index.js": [{ status: "added" }, "console.log('test');"],
       },
       comments: [],
     });
@@ -456,10 +446,7 @@ describe.concurrent("changeset-bot", () => {
           name: "root-package",
         }),
         ".changeset/config.json": JSON.stringify({}),
-        "src/index.ts": {
-          status: "added",
-          content: "export {};",
-        },
+        "src/index.ts": [{ status: "added" }, "export {};"],
       },
       comments: [],
     });
@@ -520,10 +507,7 @@ describe.concurrent("changeset-bot", () => {
         "packages/b/package.json": JSON.stringify({
           name: "pkg-b",
         }),
-        "packages/a/index.ts": {
-          status: "added",
-          content: "export const a = true;",
-        },
+        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
       },
       comments: [],
     });
@@ -581,10 +565,7 @@ describe.concurrent("changeset-bot", () => {
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
-        "packages/a/file.ts": {
-          status: "added",
-          content: "export const a = true;",
-        },
+        "packages/a/file.ts": [{ status: "added" }, "export const a = true;"],
       },
       comments: [],
     });
@@ -639,15 +620,14 @@ describe.concurrent("changeset-bot", () => {
           name: "pkg-a",
           version: "1.0.0",
         }),
-        ".changeset/abc123.md": {
+        ".changeset/abc123.md": [{
           status: "added",
-          content: `---
+        }, `---
 "pkg-a": patch
 ---
 
 add feature
-`,
-        },
+`],
       },
       comments: [],
     });
