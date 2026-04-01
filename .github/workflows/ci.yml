@@ -27,17 +27,28 @@ jobs:
       - name: Setup dependencies
         uses: ./.github/actions/ci-setup
 
-      - name: Run format:check
-        run: yarn format:check
-
       - name: Run test
         run: yarn test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # 6.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/ci-setup
+
+      - name: Run format:check
+        run: yarn format:check
 
   ci-ok:
     name: CI OK
     runs-on: ubuntu-latest
     if: always()
-    needs: [test]
+    needs: [test, lint]
     steps:
       - name: Exit with error if some jobs are not successful
         run: exit 1
