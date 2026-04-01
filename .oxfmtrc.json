@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": ["CHANGELOG.md"],
+  "sortImports": {
+    "groups": [
+      "builtin",
+      "external",
+      ["internal", "subpath"],
+      "parent",
+      "sibling",
+      "index",
+      "side_effect",
+      "unknown"
+    ],
+    "newlinesBetween": true
+  }
+}

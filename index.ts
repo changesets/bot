@@ -1,23 +1,19 @@
+import { ValidationError } from "@changesets/errors";
+import { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
+import { EmitterWebhookEvent } from "@octokit/webhooks";
+import { captureException } from "@sentry/node";
 // @ts-ignore
 import humanId from "human-id";
-import { Probot, Context } from "probot";
-import { EmitterWebhookEvent } from "@octokit/webhooks";
-import { getChangedPackages } from "./get-changed-packages";
-import {
-  ReleasePlan,
-  ComprehensiveRelease,
-  VersionType,
-} from "@changesets/types";
 import markdownTable from "markdown-table";
-import { captureException } from "@sentry/node";
-import { ValidationError } from "@changesets/errors";
+import { Probot, Context } from "probot";
+
+import { getChangedPackages } from "./get-changed-packages";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
 
   const publishableReleases = releasePlan.releases.filter(
-    (x): x is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
-      x.type !== "none"
+    (x): x is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } => x.type !== "none",
   );
 
   let table = markdownTable([
@@ -37,9 +33,7 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   return `<details><summary>This PR includes ${
     releasePlan.changesets.length
       ? `changesets to release ${
-          publishableReleases.length === 1
-            ? "1 package"
-            : `${publishableReleases.length} packages`
+          publishableReleases.length === 1 ? "1 package" : `${publishableReleases.length} packages`
         }`
       : "no changesets"
   }</summary>
@@ -56,7 +50,7 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
 const getAbsentMessage = (
   commitSha: string,
   addChangesetUrl: string,
-  releasePlan: ReleasePlan | null
+  releasePlan: ReleasePlan | null,
 ) => `###  ⚠️  No Changeset found
 
 Latest commit: ${commitSha}
@@ -74,7 +68,7 @@ ${getReleasePlanMessage(releasePlan)}
 const getApproveMessage = (
   commitSha: string,
   addChangesetUrl: string,
-  releasePlan: ReleasePlan | null
+  releasePlan: ReleasePlan | null,
 ) => `###  🦋  Changeset detected
 
 Latest commit: ${commitSha}
@@ -97,141 +91,121 @@ ${changedPackages.map((x) => `"${x}": patch`).join("\n")}
 ${title}
 `);
 
-export type PRContext = EmitterWebhookEvent<
-  "pull_request.opened" | "pull_request.synchronize"
-> &
+export type PRContext = EmitterWebhookEvent<"pull_request.opened" | "pull_request.synchronize"> &
   Omit<Context, keyof EmitterWebhookEvent>;
 
 const getCommentId = (
   context: PRContext,
-  params: { repo: string; owner: string; issue_number: number }
+  params: { repo: string; owner: string; issue_number: number },
 ) =>
   context.octokit.issues.listComments(params).then((comments) => {
     const changesetBotComment = comments.data.find(
       // TODO: find what the current user is in some way or something
       (comment) =>
         comment.user?.login === "changeset-bot[bot]" ||
-        comment.user?.login === "changesets-test-bot[bot]"
+        comment.user?.login === "changesets-test-bot[bot]",
     );
     return changesetBotComment ? changesetBotComment.id : null;
   });
 
 const hasChangesetBeenAdded = (
-  changedFilesPromise: ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>
+  changedFilesPromise: ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>,
 ) =>
   changedFilesPromise.then((files) =>
     files.data.some(
       (file) =>
         file.status === "added" &&
         /^\.changeset\/.+\.md$/.test(file.filename) &&
-        file.filename !== ".changeset/README.md"
-    )
+        file.filename !== ".changeset/README.md",
+    ),
   );
 
 export default (app: Probot) => {
   app.auth();
   app.log("Yay, the app was loaded!");
 
-  app.on(
-    ["pull_request.opened", "pull_request.synchronize"],
-    async (context) => {
-      if (
-        context.payload.pull_request.head.ref.startsWith("changeset-release")
-      ) {
-        return;
-      }
-
-      let errFromFetchingChangedFiles = "";
-
-      try {
-        let number = context.payload.number;
-
-        let repo = {
-          repo: context.payload.repository.name,
-          owner: context.payload.repository.owner.login,
-        };
-
-        const latestCommitSha = context.payload.pull_request.head.sha;
-        let changedFilesPromise = context.octokit.pulls.listFiles({
-          ...repo,
-          pull_number: number,
-        });
-
-        const [commentId, hasChangeset, { changedPackages, releasePlan }] =
-          await Promise.all([
-            // we know the comment won't exist on opened events
-            // ok, well like technically that's wrong
-            // but reducing time is nice here so that
-            // deploying this doesn't cost money
-            context.payload.action === "synchronize"
-              ? getCommentId(context, { ...repo, issue_number: number })
-              : undefined,
-            hasChangesetBeenAdded(changedFilesPromise),
-            getChangedPackages({
-              repo: context.payload.pull_request.head.repo.name,
-              owner: context.payload.pull_request.head.repo.owner.login,
-              ref: context.payload.pull_request.head.ref,
-              changedFiles: changedFilesPromise.then((x) =>
-                x.data.map((x) => x.filename)
-              ),
-              octokit: context.octokit,
-              installationToken: (
-                await (
-                  await app.auth()
-                ).apps.createInstallationAccessToken({
-                  installation_id: context.payload.installation!.id,
-                })
-              ).data.token,
-            }).catch((err) => {
-              if (err instanceof ValidationError) {
-                errFromFetchingChangedFiles = `<details><summary>💥 An error occurred when fetching the changed packages and changesets in this PR</summary>\n\n\`\`\`\n${err.message}\n\`\`\`\n\n</details>\n`;
-              } else {
-                console.error(err);
-                captureException(err);
-              }
-              return {
-                changedPackages: ["@fake-scope/fake-pkg"],
-                releasePlan: null,
-              };
-            }),
-          ] as const);
-
-        let addChangesetUrl = `${
-          context.payload.pull_request.head.repo.html_url
-        }/new/${
-          context.payload.pull_request.head.ref
-        }?filename=.changeset/${humanId({
-          separator: "-",
-          capitalize: false,
-        })}.md&value=${getNewChangesetTemplate(
-          changedPackages,
-          context.payload.pull_request.title
-        )}`;
-
-        let prComment = {
-          ...repo,
-          issue_number: number,
-          body:
-            (hasChangeset
-              ? getApproveMessage(latestCommitSha, addChangesetUrl, releasePlan)
-              : getAbsentMessage(
-                  latestCommitSha,
-                  addChangesetUrl,
-                  releasePlan
-                )) + errFromFetchingChangedFiles,
-        };
-
-        if (commentId != null) {
-          return context.octokit.issues.updateComment({
-            ...prComment,
-            comment_id: commentId,
-          });
-        }
-        return context.octokit.issues.createComment(prComment);
-      } catch (err) {
-        console.error(err);
-        throw err;
-      }
+  app.on(["pull_request.opened", "pull_request.synchronize"], async (context) => {
+    if (context.payload.pull_request.head.ref.startsWith("changeset-release")) {
+      return;
     }
-  );
+
+    let errFromFetchingChangedFiles = "";
+
+    try {
+      let number = context.payload.number;
+
+      let repo = {
+        repo: context.payload.repository.name,
+        owner: context.payload.repository.owner.login,
+      };
+
+      const latestCommitSha = context.payload.pull_request.head.sha;
+      let changedFilesPromise = context.octokit.pulls.listFiles({
+        ...repo,
+        pull_number: number,
+      });
+
+      const [commentId, hasChangeset, { changedPackages, releasePlan }] = await Promise.all([
+        // we know the comment won't exist on opened events
+        // ok, well like technically that's wrong
+        // but reducing time is nice here so that
+        // deploying this doesn't cost money
+        context.payload.action === "synchronize"
+          ? getCommentId(context, { ...repo, issue_number: number })
+          : undefined,
+        hasChangesetBeenAdded(changedFilesPromise),
+        getChangedPackages({
+          repo: context.payload.pull_request.head.repo.name,
+          owner: context.payload.pull_request.head.repo.owner.login,
+          ref: context.payload.pull_request.head.ref,
+          changedFiles: changedFilesPromise.then((x) => x.data.map((x) => x.filename)),
+          octokit: context.octokit,
+          installationToken: (
+            await (await app.auth()).apps.createInstallationAccessToken({
+              installation_id: context.payload.installation!.id,
+            })
+          ).data.token,
+        }).catch((err) => {
+          if (err instanceof ValidationError) {
+            errFromFetchingChangedFiles = `<details><summary>💥 An error occurred when fetching the changed packages and changesets in this PR</summary>\n\n\`\`\`\n${err.message}\n\`\`\`\n\n</details>\n`;
+          } else {
+            console.error(err);
+            captureException(err);
+          }
+          return {
+            changedPackages: ["@fake-scope/fake-pkg"],
+            releasePlan: null,
+          };
+        }),
+      ] as const);
+
+      let addChangesetUrl = `${context.payload.pull_request.head.repo.html_url}/new/${
+        context.payload.pull_request.head.ref
+      }?filename=.changeset/${humanId({
+        separator: "-",
+        capitalize: false,
+      })}.md&value=${getNewChangesetTemplate(changedPackages, context.payload.pull_request.title)}`;
+
+      let prComment = {
+        ...repo,
+        issue_number: number,
+        body:
+          (hasChangeset
+            ? getApproveMessage(latestCommitSha, addChangesetUrl, releasePlan)
+            : getAbsentMessage(latestCommitSha, addChangesetUrl, releasePlan)) +
+          errFromFetchingChangedFiles,
+      };
+
+      if (commentId != null) {
+        return context.octokit.issues.updateComment({
+          ...prComment,
+          comment_id: commentId,
+        });
+      }
+      return context.octokit.issues.createComment(prComment);
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  });
 };

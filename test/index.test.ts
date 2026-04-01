@@ -1,11 +1,13 @@
-import { http, HttpResponse } from "msw";
-import { setupServer } from "msw/node";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
+
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
 import { Probot, ProbotOctokit } from "probot";
 import { aroundEach, beforeAll, describe, it } from "vitest";
 
 import changesetBot, { PRContext } from "../index";
+
 import pullRequestOpen from "./fixtures/pull_request.opened.json";
 import pullRequestSynchronize from "./fixtures/pull_request.synchronize.json";
 import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json";
@@ -14,11 +16,7 @@ import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json"
 // related thread: github.com/microsoft/TypeScript/issues/36554
 function isArray<T>(
   arg: T | {},
-): arg is T extends readonly any[]
-  ? unknown extends T
-    ? never
-    : readonly any[]
-  : any[] {
+): arg is T extends readonly any[] ? (unknown extends T ? never : readonly any[]) : any[] {
   return Array.isArray(arg);
 }
 
@@ -54,10 +52,7 @@ const githubRepoBase = "https://api.github.com/repos/changesets/bot";
 const githubAppBase = "https://api.github.com/app/installations";
 
 const normalizeCommentBody = (body: string) =>
-  body.replace(
-    /filename=\.changeset\/[^)&\s]+?\.md/g,
-    "filename=.changeset/<CHANGESET_FILE>.md",
-  );
+  body.replace(/filename=\.changeset\/[^)&\s]+?\.md/g, "filename=.changeset/<CHANGESET_FILE>.md");
 
 type ChangedFile = [
   {
@@ -87,10 +82,7 @@ type RecordedRequest = {
 function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
   const requests: RecordedRequest[] = [];
 
-  const recordRequest = async (
-    request: Request,
-    mapper?: (body: unknown) => unknown,
-  ) => {
+  const recordRequest = async (request: Request, mapper?: (body: unknown) => unknown) => {
     let body: unknown;
 
     if (!["GET", "HEAD"].includes(request.method)) {
@@ -115,13 +107,10 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
   };
 
   server.use(
-    http.post(
-      `${githubAppBase}/:installationId/access_tokens`,
-      async ({ request }) => {
-        await recordRequest(request);
-        return HttpResponse.json({ token: "test" });
-      },
-    ),
+    http.post(`${githubAppBase}/:installationId/access_tokens`, async ({ request }) => {
+      await recordRequest(request);
+      return HttpResponse.json({ token: "test" });
+    }),
     http.get(`${githubRepoBase}/git/trees/:ref`, async ({ request }) => {
       await recordRequest(request);
       return HttpResponse.json({
@@ -137,9 +126,7 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
       await recordRequest(request);
       // we only use those 2 fields right now, so we don't bother with the rest of the type
       const changedFiles: Pick<
-        Awaited<
-          ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>
-        >["data"][number],
+        Awaited<ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>>["data"][number],
         "filename" | "status"
       >[] = [];
       for (const [filename, file] of Object.entries(state.files)) {
@@ -177,30 +164,21 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     http.post(`${githubRepoBase}/issues/2/comments`, async ({ request }) => {
       await recordRequest(request, (body) => {
         assert(
-          !!body &&
-            typeof body === "object" &&
-            "body" in body &&
-            typeof body.body === "string",
+          !!body && typeof body === "object" && "body" in body && typeof body.body === "string",
         );
         return { ...body, body: normalizeCommentBody(body.body) };
       });
       return HttpResponse.json({});
     }),
-    http.patch(
-      `${githubRepoBase}/issues/comments/:commentId`,
-      async ({ request }) => {
-        await recordRequest(request, (body) => {
-          assert(
-            !!body &&
-              typeof body === "object" &&
-              "body" in body &&
-              typeof body.body === "string",
-          );
-          return { ...body, body: normalizeCommentBody(body.body) };
-        });
-        return HttpResponse.json({});
-      },
-    ),
+    http.patch(`${githubRepoBase}/issues/comments/:commentId`, async ({ request }) => {
+      await recordRequest(request, (body) => {
+        assert(
+          !!body && typeof body === "object" && "body" in body && typeof body.body === "string",
+        );
+        return { ...body, body: normalizeCommentBody(body.body) };
+      });
+      return HttpResponse.json({});
+    }),
   );
 
   return { requests };
@@ -243,9 +221,7 @@ describe.concurrent("changeset-bot", () => {
       payload: pullRequestOpen,
     } as never);
 
-    const commentRequests = requests.filter((request) =>
-      request.path.includes("/comments"),
-    );
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
     expect(commentRequests).toMatchInlineSnapshot(`
       [
@@ -276,10 +252,7 @@ describe.concurrent("changeset-bot", () => {
     `);
   });
 
-  it("should update a comment when there is a comment", async ({
-    expect,
-    task,
-  }) => {
+  it("should update a comment when there is a comment", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
@@ -300,8 +273,7 @@ describe.concurrent("changeset-bot", () => {
     } as never);
 
     const commentRequests = requests.filter(
-      (request) =>
-        request.path.includes("/comments") && request.method === "PATCH",
+      (request) => request.path.includes("/comments") && request.method === "PATCH",
     );
 
     expect(commentRequests).toMatchInlineSnapshot(`
@@ -334,10 +306,7 @@ describe.concurrent("changeset-bot", () => {
     `);
   });
 
-  it("should show correct message if there is a changeset", async ({
-    expect,
-    task,
-  }) => {
+  it("should show correct message if there is a changeset", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
@@ -352,9 +321,7 @@ describe.concurrent("changeset-bot", () => {
       payload: pullRequestOpen,
     } as never);
 
-    const commentRequests = requests.filter((request) =>
-      request.path.includes("/comments"),
-    );
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
     expect(commentRequests).toMatchInlineSnapshot(`
       [
@@ -385,10 +352,7 @@ describe.concurrent("changeset-bot", () => {
     `);
   });
 
-  it("should show correct message if there is no changeset", async ({
-    expect,
-    task,
-  }) => {
+  it("should show correct message if there is no changeset", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
@@ -403,9 +367,7 @@ describe.concurrent("changeset-bot", () => {
       payload: pullRequestOpen,
     } as never);
 
-    const commentRequests = requests.filter((request) =>
-      request.path.includes("/comments"),
-    );
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
     expect(commentRequests).toMatchInlineSnapshot(`
       [
         {
@@ -435,10 +397,7 @@ describe.concurrent("changeset-bot", () => {
     `);
   });
 
-  it("uses the root package when no workspace tool is detected", async ({
-    expect,
-    task,
-  }) => {
+  it("uses the root package when no workspace tool is detected", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
@@ -456,9 +415,7 @@ describe.concurrent("changeset-bot", () => {
       payload: pullRequestOpen,
     } as never);
 
-    const commentRequests = requests.filter((request) =>
-      request.path.includes("/comments"),
-    );
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
     expect(commentRequests).toMatchInlineSnapshot(`
       [
@@ -517,9 +474,7 @@ describe.concurrent("changeset-bot", () => {
       payload: pullRequestOpen,
     } as never);
 
-    const commentRequests = requests.filter((request) =>
-      request.path.includes("/comments"),
-    );
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
     expect(commentRequests).toMatchInlineSnapshot(`
       [
@@ -578,9 +533,7 @@ describe.concurrent("changeset-bot", () => {
       payload: pullRequestOpen,
     } as never);
 
-    const commentRequests = requests.filter((request) =>
-      request.path.includes("/comments"),
-    );
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
     expect(commentRequests).toMatchInlineSnapshot(`
       [
@@ -611,10 +564,7 @@ describe.concurrent("changeset-bot", () => {
     `);
   });
 
-  it("detects pnpm workspaces when building the add-changeset link", async ({
-    expect,
-    task,
-  }) => {
+  it("detects pnpm workspaces when building the add-changeset link", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
@@ -636,9 +586,7 @@ describe.concurrent("changeset-bot", () => {
       payload: pullRequestOpen,
     } as never);
 
-    const commentRequests = requests.filter((request) =>
-      request.path.includes("/comments"),
-    );
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
     expect(commentRequests).toMatchInlineSnapshot(`
       [
@@ -681,14 +629,17 @@ describe.concurrent("changeset-bot", () => {
           name: "pkg-a",
           version: "1.0.0",
         }),
-        ".changeset/abc123.md": [{
-          status: "added",
-        }, `---
+        ".changeset/abc123.md": [
+          {
+            status: "added",
+          },
+          `---
 "pkg-a": patch
 ---
 
 add feature
-`],
+`,
+        ],
       },
       comments: [],
     });
@@ -698,9 +649,7 @@ add feature
       payload: pullRequestOpen,
     } as never);
 
-    const commentRequests = requests.filter((request) =>
-      request.path.includes("/comments"),
-    );
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
     expect(commentRequests).toMatchInlineSnapshot(`
       [
@@ -733,10 +682,7 @@ add feature
     `);
   });
 
-  it("shouldn't add a comment to a release pull request", async ({
-    expect,
-    task,
-  }) => {
+  it("shouldn't add a comment to a release pull request", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: baseFiles,
