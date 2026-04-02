@@ -1,22 +1,28 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 
-import { http, HttpResponse } from "msw";
+import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { Probot, ProbotOctokit } from "probot";
 import { aroundEach, beforeAll, describe, it } from "vitest";
 
-import changesetBot, { PRContext } from "../index";
+import type { PRContext } from "../index";
+import changesetBot from "../index";
 
 import pullRequestOpen from "./fixtures/pull_request.opened.json";
 import pullRequestSynchronize from "./fixtures/pull_request.synchronize.json";
 import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json";
 
 // TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
-// related thread: github.com/microsoft/TypeScript/issues/36554
+// Related thread: github.com/microsoft/TypeScript/issues/36554
 function isArray<T>(
+  // oxlint-disable-next-line typescript/ban-types
   arg: T | {},
-): arg is T extends readonly any[] ? (unknown extends T ? never : readonly any[]) : any[] {
+): arg is T extends ReadonlyArray<any>
+  ? unknown extends T
+    ? never
+    : ReadonlyArray<any>
+  : Array<any> {
   return Array.isArray(arg);
 }
 
@@ -35,16 +41,16 @@ function setupMswServer() {
 const server = setupMswServer();
 
 // Probot validates the privateKey locally
-//  so we must generate a valid key
+//  So we must generate a valid key
 const { privateKey } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
-  publicKeyEncoding: {
-    type: "spki",
-    format: "pem",
-  },
   privateKeyEncoding: {
-    type: "pkcs8",
     format: "pem",
+    type: "pkcs8",
+  },
+  publicKeyEncoding: {
+    format: "pem",
+    type: "spki",
   },
 });
 
@@ -52,7 +58,10 @@ const githubRepoBase = "https://api.github.com/repos/changesets/bot";
 const githubAppBase = "https://api.github.com/app/installations";
 
 const normalizeCommentBody = (body: string) =>
-  body.replace(/filename=\.changeset\/[^)&\s]+?\.md/g, "filename=.changeset/<CHANGESET_FILE>.md");
+  body.replaceAll(
+    /filename=\.changeset\/[^)&\s]+?\.md/g,
+    "filename=.changeset/<CHANGESET_FILE>.md",
+  );
 
 type ChangedFile = [
   {
@@ -63,24 +72,24 @@ type ChangedFile = [
 
 type FileState = string | ChangedFile;
 
-type CommentState = {
+interface CommentState {
   id: number;
   user: { login: string };
-};
+}
 
-type PrState = {
+interface PrState {
   files: Record<string, FileState>;
-  comments?: CommentState[];
-};
+  comments?: Array<CommentState>;
+}
 
-type RecordedRequest = {
+interface RecordedRequest {
   method: string;
   path: string;
   body?: unknown;
-};
+}
 
-function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
-  const requests: RecordedRequest[] = [];
+function usePrState(apiServer: ReturnType<typeof setupServer>, state: PrState) {
+  const requests: Array<RecordedRequest> = [];
 
   const recordRequest = async (request: Request, mapper?: (body: unknown) => unknown) => {
     let body: unknown;
@@ -100,13 +109,13 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     }
 
     requests.push({
+      body,
       method: request.method,
       path: new URL(request.url).pathname,
-      body,
     });
   };
 
-  server.use(
+  apiServer.use(
     http.post(`${githubAppBase}/:installationId/access_tokens`, async ({ request }) => {
       await recordRequest(request);
       return HttpResponse.json({ token: "test" });
@@ -124,11 +133,13 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     }),
     http.get(`${githubRepoBase}/pulls/2/files`, async ({ request }) => {
       await recordRequest(request);
-      // we only use those 2 fields right now, so we don't bother with the rest of the type
-      const changedFiles: Pick<
-        Awaited<ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>>["data"][number],
-        "filename" | "status"
-      >[] = [];
+      // We only use those 2 fields right now, so we don't bother with the rest of the type
+      const changedFiles: Array<
+        Pick<
+          Awaited<ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>>["data"][number],
+          "filename" | "status"
+        >
+      > = [];
       for (const [filename, file] of Object.entries(state.files)) {
         if (typeof file !== "string") {
           changedFiles.push({
@@ -145,16 +156,17 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
         await recordRequest(request);
 
         const path = isArray(params.path) ? params.path.join("/") : params.path;
-        assert(path);
+        assert.ok(path);
         const file = state.files[path];
 
-        if (file == null) {
+        if (file === null) {
           return new HttpResponse("Not found", { status: 404 });
         }
 
         const content = typeof file === "string" ? file : file[1];
 
         if (path.endsWith(".json")) {
+          // oxlint-disable-next-line typescript/no-unsafe-argument
           return HttpResponse.json(JSON.parse(content));
         }
 
@@ -163,7 +175,7 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     ),
     http.post(`${githubRepoBase}/issues/2/comments`, async ({ request }) => {
       await recordRequest(request, (body) => {
-        assert(
+        assert.ok(
           !!body && typeof body === "object" && "body" in body && typeof body.body === "string",
         );
         return { ...body, body: normalizeCommentBody(body.body) };
@@ -172,7 +184,7 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     }),
     http.patch(`${githubRepoBase}/issues/comments/:commentId`, async ({ request }) => {
       await recordRequest(request, (body) => {
-        assert(
+        assert.ok(
           !!body && typeof body === "object" && "body" in body && typeof body.body === "string",
         );
         return { ...body, body: normalizeCommentBody(body.body) };
@@ -185,14 +197,14 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
 }
 
 const baseFiles = {
+  ".changeset/config.json": JSON.stringify({}),
   "package.json": JSON.stringify({
     name: "test",
     workspaces: ["packages/*"],
   }),
-  ".changeset/config.json": JSON.stringify({}),
 };
 
-function setupProbot(testId: string) {
+function setupProbot(testId: string): Probot {
   // Probot reuses some global state for Octokit instances for the same installation id.
   // That makes MSW mocking unreliable as requests scheduled by one test can be actually dispatched from the context of another test.
   const TestOctokit = ProbotOctokit.defaults({
@@ -200,7 +212,7 @@ function setupProbot(testId: string) {
       id: `test-${testId}`,
     },
   });
-  const probot = new Probot({ appId: 123, privateKey, Octokit: TestOctokit });
+  const probot = new Probot({ Octokit: TestOctokit, appId: 123, privateKey });
   changesetBot(probot);
   return probot;
 }
@@ -209,17 +221,18 @@ describe.concurrent("changeset-bot", () => {
   it("adds a comment when there is no comment", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      comments: [],
       files: {
         ...baseFiles,
         ".changeset/something-changed.md": [{ status: "added" }, "---\n---\n"],
       },
-      comments: [],
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    } as never);
+    });
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -255,24 +268,27 @@ describe.concurrent("changeset-bot", () => {
   it("should update a comment when there is a comment", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      files: {
-        ...baseFiles,
-        ".changeset/something/changes.md": [{ status: "added" }, "---\n---\n"],
-      },
       comments: [
         {
           id: 7,
           user: { login: "changeset-bot[bot]" },
         },
       ],
+      files: {
+        ...baseFiles,
+        ".changeset/something/changes.md": [{ status: "added" }, "---\n---\n"],
+      },
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestSynchronize,
-    } as never);
+    });
 
     const commentRequests = requests.filter(
+      // https://github.com/oxc-project/oxc/issues/20894
+      // oxlint-disable-next-line jest/no-conditional-in-test
       (request) => request.path.includes("/comments") && request.method === "PATCH",
     );
 
@@ -309,17 +325,18 @@ describe.concurrent("changeset-bot", () => {
   it("should show correct message if there is a changeset", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      comments: [],
       files: {
         ...baseFiles,
         ".changeset/something/changes.md": [{ status: "added" }, "---\n---\n"],
       },
-      comments: [],
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    } as never);
+    });
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -355,17 +372,18 @@ describe.concurrent("changeset-bot", () => {
   it("should show correct message if there is no changeset", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      comments: [],
       files: {
         ...baseFiles,
         "index.js": [{ status: "added" }, "console.log('test');"],
       },
-      comments: [],
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    } as never);
+    });
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
     expect(commentRequests).toMatchInlineSnapshot(`
@@ -400,20 +418,21 @@ describe.concurrent("changeset-bot", () => {
   it("uses the root package when no workspace tool is detected", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      comments: [],
       files: {
+        ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "root-package",
         }),
-        ".changeset/config.json": JSON.stringify({}),
         "src/index.ts": [{ status: "added" }, "export {};"],
       },
-      comments: [],
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    } as never);
+    });
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -452,27 +471,28 @@ describe.concurrent("changeset-bot", () => {
   }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      comments: [],
       files: {
+        ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "test",
           workspaces: ["packages/*"],
         }),
-        ".changeset/config.json": JSON.stringify({}),
+        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
         "packages/b/package.json": JSON.stringify({
           name: "pkg-b",
         }),
-        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
       },
-      comments: [],
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    } as never);
+    });
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -511,27 +531,28 @@ describe.concurrent("changeset-bot", () => {
   }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      comments: [],
       files: {
+        ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "test",
           workspaces: ["packages/*"],
         }),
-        ".changeset/config.json": JSON.stringify({}),
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
+        "packages/ab/index.ts": [{ status: "added" }, "export const ab = true;"],
         "packages/ab/package.json": JSON.stringify({
           name: "pkg-ab",
         }),
-        "packages/ab/index.ts": [{ status: "added" }, "export const ab = true;"],
       },
-      comments: [],
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    } as never);
+    });
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -567,24 +588,25 @@ describe.concurrent("changeset-bot", () => {
   it("detects pnpm workspaces when building the add-changeset link", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      comments: [],
       files: {
+        ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "test",
         }),
-        ".changeset/config.json": JSON.stringify({}),
-        "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
+        "packages/a/file.ts": [{ status: "added" }, "export const a = true;"],
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
-        "packages/a/file.ts": [{ status: "added" }, "export const a = true;"],
+        "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
       },
-      comments: [],
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    } as never);
+    });
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -623,12 +645,9 @@ describe.concurrent("changeset-bot", () => {
   }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      comments: [],
       files: {
         ...baseFiles,
-        "packages/a/package.json": JSON.stringify({
-          name: "pkg-a",
-          version: "1.0.0",
-        }),
         ".changeset/abc123.md": [
           {
             status: "added",
@@ -640,14 +659,18 @@ describe.concurrent("changeset-bot", () => {
 add feature
 `,
         ],
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+          version: "1.0.0",
+        }),
       },
-      comments: [],
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    } as never);
+    });
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -685,14 +708,15 @@ add feature
   it("shouldn't add a comment to a release pull request", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      files: baseFiles,
       comments: [],
+      files: baseFiles,
     });
 
     await probot.receive({
       name: "pull_request",
+      // @ts-expect-error fixtures json doesn't match typescript type
       payload: releasePullRequestOpen,
-    } as never);
+    });
 
     expect(requests).toHaveLength(0);
   });

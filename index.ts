@@ -1,11 +1,10 @@
 import { ValidationError } from "@changesets/errors";
-import { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
-import { EmitterWebhookEvent } from "@octokit/webhooks";
+import type { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
+import type { EmitterWebhookEvent } from "@octokit/webhooks";
 import { captureException } from "@sentry/node";
-// @ts-ignore
 import humanId from "human-id";
 import markdownTable from "markdown-table";
-import { Probot, Context } from "probot";
+import type { Probot, Context } from "probot";
 
 import { getChangedPackages } from "./get-changed-packages";
 
@@ -31,7 +30,7 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   ]);
 
   return `<details><summary>This PR includes ${
-    releasePlan.changesets.length
+    releasePlan.changesets.length > 0
       ? `changesets to release ${
           publishableReleases.length === 1 ? "1 package" : `${publishableReleases.length} packages`
         }`
@@ -39,7 +38,7 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   }</summary>
 
   ${
-    publishableReleases.length
+    publishableReleases.length > 0
       ? table
       : "When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types"
   }
@@ -83,7 +82,7 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 
 `;
 
-const getNewChangesetTemplate = (changedPackages: string[], title: string) =>
+const getNewChangesetTemplate = (changedPackages: Array<string>, title: string) =>
   encodeURIComponent(`---
 ${changedPackages.map((x) => `"${x}": patch`).join("\n")}
 ---
@@ -120,8 +119,8 @@ const hasChangesetBeenAdded = (
     ),
   );
 
-export default (app: Probot) => {
-  app.auth();
+export default (app: Probot): void => {
+  void app.auth();
   app.log("Yay, the app was loaded!");
 
   app.on(["pull_request.opened", "pull_request.synchronize"], async (context) => {
@@ -152,13 +151,13 @@ export default (app: Probot) => {
         // deploying this doesn't cost money
         context.payload.action === "synchronize"
           ? getCommentId(context, { ...repo, issue_number: number })
-          : undefined,
+          : Promise.resolve(null),
         hasChangesetBeenAdded(changedFilesPromise),
         getChangedPackages({
           repo: context.payload.pull_request.head.repo.name,
           owner: context.payload.pull_request.head.repo.owner.login,
           ref: context.payload.pull_request.head.ref,
-          changedFiles: changedFilesPromise.then((x) => x.data.map((x) => x.filename)),
+          changedFiles: changedFilesPromise.then((x) => x.data.map(({ filename }) => filename)),
           octokit: context.octokit,
           installationToken: (
             await (await app.auth()).apps.createInstallationAccessToken({
@@ -196,7 +195,7 @@ export default (app: Probot) => {
           errFromFetchingChangedFiles,
       };
 
-      if (commentId != null) {
+      if (commentId !== null) {
         return context.octokit.issues.updateComment({
           ...prComment,
           comment_id: commentId,

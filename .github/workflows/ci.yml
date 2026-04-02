@@ -44,6 +44,9 @@ jobs:
       - name: Run format:check
         run: yarn format:check
 
+      - name: Run lint and typecheck
+        run: yarn lint
+
   ci-ok:
     name: CI OK
     runs-on: ubuntu-latest
