@@ -220,11 +220,11 @@ describe.concurrent("changeset-bot", () => {
   it("adds a comment when there is no comment", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: {
         ...baseFiles,
         ".changeset/something-changed.md": [{ status: "added" }, "---\n---\n"],
       },
+      comments: [],
     });
 
     await probot.receive({

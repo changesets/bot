@@ -136,8 +136,8 @@ export const getChangedPackages = async ({
     const pnpmWorkspace = safeLoad(pnpmWorkspaceContent) as PnpmWorkspace;
 
     tool = {
-      globs: pnpmWorkspace.packages,
       tool: "pnpm",
+      globs: pnpmWorkspace.packages,
     };
   } else {
     const rootPackageJsonContent = await rootPackageJsonContentsPromise;
@@ -145,19 +145,19 @@ export const getChangedPackages = async ({
     if (rootPackageJsonContent.workspaces) {
       if (Array.isArray(rootPackageJsonContent.workspaces)) {
         tool = {
-          globs: rootPackageJsonContent.workspaces,
           tool: "yarn",
+          globs: rootPackageJsonContent.workspaces,
         };
       } else {
         tool = {
-          globs: rootPackageJsonContent.workspaces.packages,
           tool: "yarn",
+          globs: rootPackageJsonContent.workspaces.packages,
         };
       }
     } else if (rootPackageJsonContent.bolt && rootPackageJsonContent.bolt.workspaces) {
       tool = {
-        globs: rootPackageJsonContent.bolt.workspaces,
         tool: "bolt",
+        globs: rootPackageJsonContent.bolt.workspaces,
       };
     }
   }
