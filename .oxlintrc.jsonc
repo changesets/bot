@@ -22,6 +22,8 @@
     "typescript/array-type": ["error", { "default": "generic", "readonly": "generic" }],
     "typescript/ban-types": "off", // deprecated, replaced by no-unsafe-function-type and no-wrapper-object-types
     "typescript/consistent-type-imports": "error",
+    "typescript/explicit-function-return-type": "off",
+    "typescript/explicit-module-boundary-types": "off",
     "typescript/no-unsafe-type-assertion": "off",
     "typescript/no-unsafe-function-type": "error",
     "typescript/no-wrapper-object-types": "error",

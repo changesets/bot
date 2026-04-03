@@ -203,7 +203,7 @@ const baseFiles = {
   }),
 };
 
-function setupProbot(testId: string): Probot {
+function setupProbot(testId: string) {
   // Probot reuses some global state for Octokit instances for the same installation id.
   // That makes MSW mocking unreliable as requests scheduled by one test can be actually dispatched from the context of another test.
   const TestOctokit = ProbotOctokit.defaults({
