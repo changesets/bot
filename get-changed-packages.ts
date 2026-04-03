@@ -187,12 +187,10 @@ export const getChangedPackages = async ({
     throw new Error("an error occurred when fetching files");
   }
 
-  const rawConfig = await rawConfigPromise;
-
   const releasePlan = assembleReleasePlan(
     await Promise.all(changesetPromises),
     packages,
-    parseConfig(rawConfig, packages),
+    parseConfig(await rawConfigPromise, packages),
     await preStatePromise,
   );
 
