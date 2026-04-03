@@ -77,7 +77,7 @@ interface CommentState {
 }
 
 interface PrState {
-  files: Record<string, FileState>;
+  files: Partial<Record<string, FileState>>;
   comments?: Array<CommentState>;
 }
 
@@ -143,7 +143,7 @@ function usePrState(apiServer: ReturnType<typeof setupServer>, state: PrState) {
         if (typeof file !== "string") {
           changedFiles.push({
             filename,
-            status: file[0].status,
+            status: file![0].status,
           });
         }
       }
@@ -158,7 +158,7 @@ function usePrState(apiServer: ReturnType<typeof setupServer>, state: PrState) {
         assert.ok(path);
         const file = state.files[path];
 
-        if (file === null) {
+        if (file === undefined) {
           return new HttpResponse("Not found", { status: 404 });
         }
 
