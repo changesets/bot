@@ -44,8 +44,11 @@ jobs:
       - name: Run format:check
         run: yarn format:check
 
-      - name: Run lint and typecheck
-        run: yarn lint
+      - name: Run lint
+        run: yarn lint:ci
+
+      - name: Run typecheck
+        run: yarn typecheck
 
   ci-ok:
     name: CI OK
