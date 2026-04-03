@@ -16,7 +16,6 @@ import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json"
 // TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
 // Related thread: github.com/microsoft/TypeScript/issues/36554
 function isArray<T>(
-  // oxlint-disable-next-line typescript/ban-types
   arg: T | {},
 ): arg is T extends ReadonlyArray<any>
   ? unknown extends T
