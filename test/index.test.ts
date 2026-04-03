@@ -284,8 +284,6 @@ describe.concurrent("changeset-bot", () => {
     } as never);
 
     const commentRequests = requests.filter(
-      // https://github.com/oxc-project/oxc/issues/20894
-      // oxlint-disable-next-line jest/no-conditional-in-test
       (request) => request.path.includes("/comments") && request.method === "PATCH",
     );
 
