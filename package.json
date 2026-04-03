@@ -10,7 +10,7 @@
     "format:check": "oxfmt --check",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "lint:ci": "oxlint --type-check false",
+    "lint:ci": "oxlint --format=github",
     "typecheck": "tsc --noEmit",
     "test": "vitest"
   },

@@ -9,7 +9,7 @@
   },
   "options": {
     "typeAware": true,
-    "typeCheck": true,
+    "typeCheck": false,
   },
   "rules": {
     "func-style": "off",
