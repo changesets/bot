@@ -14,7 +14,7 @@ import pullRequestSynchronize from "./fixtures/pull_request.synchronize.json";
 import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json";
 
 // TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
-// Related thread: github.com/microsoft/TypeScript/issues/36554
+// related thread: github.com/microsoft/TypeScript/issues/36554
 function isArray<T>(
   arg: T | {},
 ): arg is T extends ReadonlyArray<any>
@@ -229,9 +229,8 @@ describe.concurrent("changeset-bot", () => {
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    });
+    } as never);
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -281,9 +280,8 @@ describe.concurrent("changeset-bot", () => {
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestSynchronize,
-    });
+    } as never);
 
     const commentRequests = requests.filter(
       // https://github.com/oxc-project/oxc/issues/20894
@@ -333,9 +331,8 @@ describe.concurrent("changeset-bot", () => {
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    });
+    } as never);
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -380,9 +377,8 @@ describe.concurrent("changeset-bot", () => {
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    });
+    } as never);
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
     expect(commentRequests).toMatchInlineSnapshot(`
@@ -429,9 +425,8 @@ describe.concurrent("changeset-bot", () => {
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    });
+    } as never);
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -489,9 +484,8 @@ describe.concurrent("changeset-bot", () => {
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    });
+    } as never);
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -549,9 +543,8 @@ describe.concurrent("changeset-bot", () => {
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    });
+    } as never);
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -603,9 +596,8 @@ describe.concurrent("changeset-bot", () => {
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    });
+    } as never);
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -667,9 +659,8 @@ add feature
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: pullRequestOpen,
-    });
+    } as never);
 
     const commentRequests = requests.filter((request) => request.path.includes("/comments"));
 
@@ -713,9 +704,8 @@ add feature
 
     await probot.receive({
       name: "pull_request",
-      // @ts-expect-error fixtures json doesn't match typescript type
       payload: releasePullRequestOpen,
-    });
+    } as never);
 
     expect(requests).toHaveLength(0);
   });

@@ -145,7 +145,7 @@ export default (app: Probot): void => {
       });
 
       const [commentId, hasChangeset, { changedPackages, releasePlan }] = await Promise.all([
-        // we know the comment won't exist on opened events
+        // We know the comment won't exist on opened events
         // ok, well like technically that's wrong
         // but reducing time is nice here so that
         // deploying this doesn't cost money
