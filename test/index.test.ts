@@ -40,16 +40,16 @@ function setupMswServer() {
 const server = setupMswServer();
 
 // Probot validates the privateKey locally
-//  So we must generate a valid key
+// so we must generate a valid key
 const { privateKey } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
   privateKeyEncoding: {
-    format: "pem",
     type: "pkcs8",
+    format: "pem",
   },
   publicKeyEncoding: {
-    format: "pem",
     type: "spki",
+    format: "pem",
   },
 });
 
@@ -266,16 +266,16 @@ describe.concurrent("changeset-bot", () => {
   it("should update a comment when there is a comment", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        ".changeset/something/changes.md": [{ status: "added" }, "---\n---\n"],
+      },
       comments: [
         {
           id: 7,
           user: { login: "changeset-bot[bot]" },
         },
       ],
-      files: {
-        ...baseFiles,
-        ".changeset/something/changes.md": [{ status: "added" }, "---\n---\n"],
-      },
     });
 
     await probot.receive({
@@ -320,11 +320,11 @@ describe.concurrent("changeset-bot", () => {
   it("should show correct message if there is a changeset", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: {
         ...baseFiles,
         ".changeset/something/changes.md": [{ status: "added" }, "---\n---\n"],
       },
+      comments: [],
     });
 
     await probot.receive({
@@ -366,11 +366,11 @@ describe.concurrent("changeset-bot", () => {
   it("should show correct message if there is no changeset", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: {
         ...baseFiles,
         "index.js": [{ status: "added" }, "console.log('test');"],
       },
+      comments: [],
     });
 
     await probot.receive({
@@ -411,7 +411,6 @@ describe.concurrent("changeset-bot", () => {
   it("uses the root package when no workspace tool is detected", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: {
         ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
@@ -419,6 +418,7 @@ describe.concurrent("changeset-bot", () => {
         }),
         "src/index.ts": [{ status: "added" }, "export {};"],
       },
+      comments: [],
     });
 
     await probot.receive({
@@ -463,7 +463,6 @@ describe.concurrent("changeset-bot", () => {
   }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: {
         ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
@@ -478,6 +477,7 @@ describe.concurrent("changeset-bot", () => {
           name: "pkg-b",
         }),
       },
+      comments: [],
     });
 
     await probot.receive({
@@ -522,7 +522,6 @@ describe.concurrent("changeset-bot", () => {
   }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: {
         ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
@@ -537,6 +536,7 @@ describe.concurrent("changeset-bot", () => {
           name: "pkg-ab",
         }),
       },
+      comments: [],
     });
 
     await probot.receive({
@@ -578,7 +578,6 @@ describe.concurrent("changeset-bot", () => {
   it("detects pnpm workspaces when building the add-changeset link", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: {
         ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
@@ -590,6 +589,7 @@ describe.concurrent("changeset-bot", () => {
         }),
         "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
       },
+      comments: [],
     });
 
     await probot.receive({
@@ -634,7 +634,6 @@ describe.concurrent("changeset-bot", () => {
   }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: {
         ...baseFiles,
         ".changeset/abc123.md": [
@@ -653,6 +652,7 @@ add feature
           version: "1.0.0",
         }),
       },
+      comments: [],
     });
 
     await probot.receive({
@@ -696,8 +696,8 @@ add feature
   it("shouldn't add a comment to a release pull request", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
-      comments: [],
       files: baseFiles,
+      comments: [],
     });
 
     await probot.receive({

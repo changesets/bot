@@ -119,7 +119,7 @@ const hasChangesetBeenAdded = (
     ),
   );
 
-export default (app: Probot): void => {
+export default (app: Probot) => {
   void app.auth();
   app.log("Yay, the app was loaded!");
 
