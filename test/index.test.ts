@@ -43,12 +43,12 @@ const server = setupMswServer();
 // so we must generate a valid key
 const { privateKey } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
-  privateKeyEncoding: {
-    type: "pkcs8",
-    format: "pem",
-  },
   publicKeyEncoding: {
     type: "spki",
+    format: "pem",
+  },
+  privateKeyEncoding: {
+    type: "pkcs8",
     format: "pem",
   },
 });
@@ -108,9 +108,9 @@ function usePrState(apiServer: ReturnType<typeof setupServer>, state: PrState) {
     }
 
     requests.push({
-      body,
       method: request.method,
       path: new URL(request.url).pathname,
+      body,
     });
   };
 
@@ -211,7 +211,7 @@ function setupProbot(testId: string) {
       id: `test-${testId}`,
     },
   });
-  const probot = new Probot({ Octokit: TestOctokit, appId: 123, privateKey });
+  const probot = new Probot({ appId: 123, privateKey, Octokit: TestOctokit });
   changesetBot(probot);
   return probot;
 }
@@ -469,10 +469,10 @@ describe.concurrent("changeset-bot", () => {
           name: "test",
           workspaces: ["packages/*"],
         }),
-        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
+        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
         "packages/b/package.json": JSON.stringify({
           name: "pkg-b",
         }),
@@ -531,10 +531,10 @@ describe.concurrent("changeset-bot", () => {
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
-        "packages/ab/index.ts": [{ status: "added" }, "export const ab = true;"],
         "packages/ab/package.json": JSON.stringify({
           name: "pkg-ab",
         }),
+        "packages/ab/index.ts": [{ status: "added" }, "export const ab = true;"],
       },
       comments: [],
     });
@@ -583,11 +583,11 @@ describe.concurrent("changeset-bot", () => {
         "package.json": JSON.stringify({
           name: "test",
         }),
-        "packages/a/file.ts": [{ status: "added" }, "export const a = true;"],
+        "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
-        "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
+        "packages/a/file.ts": [{ status: "added" }, "export const a = true;"],
       },
       comments: [],
     });

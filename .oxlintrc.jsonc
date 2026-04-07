@@ -19,7 +19,10 @@
     "no-magic-numbers": "off",
     "no-ternary": "off",
     "no-warning-comments": "off",
+    "sort-keys": "off",
+
     "jest/no-conditional-in-test": "off",
+
     "typescript/array-type": ["error", { "default": "generic", "readonly": "generic" }],
     "typescript/ban-types": "off", // deprecated, replaced by no-unsafe-function-type and no-wrapper-object-types
     "typescript/consistent-type-imports": "error",
