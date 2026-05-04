@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 
-import { http, HttpResponse } from "msw";
+import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { Probot, ProbotOctokit } from "probot";
 import { aroundEach, beforeAll, describe, it } from "vitest";
 
-import changesetBot, { PRContext } from "../index";
+import type { PRContext } from "../index";
+import changesetBot from "../index";
 
 import pullRequestOpen from "./fixtures/pull_request.opened.json";
 import pullRequestSynchronize from "./fixtures/pull_request.synchronize.json";
@@ -16,7 +17,11 @@ import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json"
 // related thread: github.com/microsoft/TypeScript/issues/36554
 function isArray<T>(
   arg: T | {},
-): arg is T extends readonly any[] ? (unknown extends T ? never : readonly any[]) : any[] {
+): arg is T extends ReadonlyArray<any>
+  ? unknown extends T
+    ? never
+    : ReadonlyArray<any>
+  : Array<any> {
   return Array.isArray(arg);
 }
 
@@ -35,7 +40,7 @@ function setupMswServer() {
 const server = setupMswServer();
 
 // Probot validates the privateKey locally
-//  so we must generate a valid key
+// so we must generate a valid key
 const { privateKey } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
   publicKeyEncoding: {
@@ -52,7 +57,10 @@ const githubRepoBase = "https://api.github.com/repos/changesets/bot";
 const githubAppBase = "https://api.github.com/app/installations";
 
 const normalizeCommentBody = (body: string) =>
-  body.replace(/filename=\.changeset\/[^)&\s]+?\.md/g, "filename=.changeset/<CHANGESET_FILE>.md");
+  body.replaceAll(
+    /filename=\.changeset\/[^)&\s]+?\.md/g,
+    "filename=.changeset/<CHANGESET_FILE>.md",
+  );
 
 type ChangedFile = [
   {
@@ -63,24 +71,24 @@ type ChangedFile = [
 
 type FileState = string | ChangedFile;
 
-type CommentState = {
+interface CommentState {
   id: number;
   user: { login: string };
-};
+}
 
-type PrState = {
-  files: Record<string, FileState>;
-  comments?: CommentState[];
-};
+interface PrState {
+  files: Partial<Record<string, FileState>>;
+  comments?: Array<CommentState>;
+}
 
-type RecordedRequest = {
+interface RecordedRequest {
   method: string;
   path: string;
   body?: unknown;
-};
+}
 
-function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
-  const requests: RecordedRequest[] = [];
+function usePrState(apiServer: ReturnType<typeof setupServer>, state: PrState) {
+  const requests: Array<RecordedRequest> = [];
 
   const recordRequest = async (request: Request, mapper?: (body: unknown) => unknown) => {
     let body: unknown;
@@ -106,7 +114,7 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     });
   };
 
-  server.use(
+  apiServer.use(
     http.post(`${githubAppBase}/:installationId/access_tokens`, async ({ request }) => {
       await recordRequest(request);
       return HttpResponse.json({ token: "test" });
@@ -124,13 +132,15 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     }),
     http.get(`${githubRepoBase}/pulls/2/files`, async ({ request }) => {
       await recordRequest(request);
-      // we only use those 2 fields right now, so we don't bother with the rest of the type
-      const changedFiles: Pick<
-        Awaited<ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>>["data"][number],
-        "filename" | "status"
-      >[] = [];
+      // We only use those 2 fields right now, so we don't bother with the rest of the type
+      const changedFiles: Array<
+        Pick<
+          Awaited<ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>>["data"][number],
+          "filename" | "status"
+        >
+      > = [];
       for (const [filename, file] of Object.entries(state.files)) {
-        if (typeof file !== "string") {
+        if (file && typeof file !== "string") {
           changedFiles.push({
             filename,
             status: file[0].status,
@@ -145,16 +155,17 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
         await recordRequest(request);
 
         const path = isArray(params.path) ? params.path.join("/") : params.path;
-        assert(path);
+        assert.ok(path);
         const file = state.files[path];
 
-        if (file == null) {
+        if (file === undefined) {
           return new HttpResponse("Not found", { status: 404 });
         }
 
         const content = typeof file === "string" ? file : file[1];
 
         if (path.endsWith(".json")) {
+          // oxlint-disable-next-line typescript/no-unsafe-argument
           return HttpResponse.json(JSON.parse(content));
         }
 
@@ -163,7 +174,7 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     ),
     http.post(`${githubRepoBase}/issues/2/comments`, async ({ request }) => {
       await recordRequest(request, (body) => {
-        assert(
+        assert.ok(
           !!body && typeof body === "object" && "body" in body && typeof body.body === "string",
         );
         return { ...body, body: normalizeCommentBody(body.body) };
@@ -172,7 +183,7 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
     }),
     http.patch(`${githubRepoBase}/issues/comments/:commentId`, async ({ request }) => {
       await recordRequest(request, (body) => {
-        assert(
+        assert.ok(
           !!body && typeof body === "object" && "body" in body && typeof body.body === "string",
         );
         return { ...body, body: normalizeCommentBody(body.body) };
@@ -185,11 +196,11 @@ function usePrState(server: ReturnType<typeof setupServer>, state: PrState) {
 }
 
 const baseFiles = {
+  ".changeset/config.json": JSON.stringify({}),
   "package.json": JSON.stringify({
     name: "test",
     workspaces: ["packages/*"],
   }),
-  ".changeset/config.json": JSON.stringify({}),
 };
 
 function setupProbot(testId: string) {
@@ -273,6 +284,7 @@ describe.concurrent("changeset-bot", () => {
     } as never);
 
     const commentRequests = requests.filter(
+      // oxlint-disable-next-line vitest/no-conditional-in-test
       (request) => request.path.includes("/comments") && request.method === "PATCH",
     );
 
@@ -401,10 +413,10 @@ describe.concurrent("changeset-bot", () => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
+        ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "root-package",
         }),
-        ".changeset/config.json": JSON.stringify({}),
         "src/index.ts": [{ status: "added" }, "export {};"],
       },
       comments: [],
@@ -453,18 +465,18 @@ describe.concurrent("changeset-bot", () => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
+        ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "test",
           workspaces: ["packages/*"],
         }),
-        ".changeset/config.json": JSON.stringify({}),
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
+        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
         "packages/b/package.json": JSON.stringify({
           name: "pkg-b",
         }),
-        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
       },
       comments: [],
     });
@@ -512,11 +524,11 @@ describe.concurrent("changeset-bot", () => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
+        ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "test",
           workspaces: ["packages/*"],
         }),
-        ".changeset/config.json": JSON.stringify({}),
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
         }),
@@ -568,10 +580,10 @@ describe.concurrent("changeset-bot", () => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
+        ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "test",
         }),
-        ".changeset/config.json": JSON.stringify({}),
         "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
@@ -625,10 +637,6 @@ describe.concurrent("changeset-bot", () => {
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
-        "packages/a/package.json": JSON.stringify({
-          name: "pkg-a",
-          version: "1.0.0",
-        }),
         ".changeset/abc123.md": [
           {
             status: "added",
@@ -640,6 +648,10 @@ describe.concurrent("changeset-bot", () => {
 add feature
 `,
         ],
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+          version: "1.0.0",
+        }),
       },
       comments: [],
     });

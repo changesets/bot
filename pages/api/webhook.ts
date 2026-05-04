@@ -2,7 +2,7 @@ import { createNodeMiddleware, createProbot } from "probot";
 
 import app from "../../index";
 
-// requires:
+// Requires:
 // - APP_ID
 // - PRIVATE_KEY
 // - WEBHOOK_SECRET

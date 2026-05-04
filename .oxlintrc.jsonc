@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "vitest", "import", "promise"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error",
+    "pedantic": "error",
+  },
+  "options": {
+    "typeAware": true,
+    "typeCheck": false,
+  },
+  "rules": {
+    "func-style": "off",
+    "max-lines": "off",
+    "max-lines-per-function": "off",
+    "no-implicit-coercion": "off",
+    "no-magic-numbers": "off",
+    "no-ternary": "off",
+    "no-warning-comments": "off",
+    "sort-keys": "off",
+
+    "jest/no-conditional-in-test": "off",
+
+    "typescript/array-type": ["error", { "default": "generic", "readonly": "generic" }],
+    "typescript/ban-types": "off", // deprecated, replaced by no-unsafe-function-type and no-wrapper-object-types
+    "typescript/consistent-type-imports": "error",
+    "typescript/explicit-function-return-type": "off",
+    "typescript/explicit-module-boundary-types": "off",
+    "typescript/no-unsafe-type-assertion": "off",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/no-wrapper-object-types": "error",
+    "typescript/prefer-readonly-parameter-types": "off",
+    "typescript/return-await": "off",
+    "typescript/strict-boolean-expressions": "off",
+  },
+  "env": {
+    "builtin": true,
+  },
+}

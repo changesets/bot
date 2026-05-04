@@ -1,11 +1,10 @@
 import { ValidationError } from "@changesets/errors";
-import { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
-import { EmitterWebhookEvent } from "@octokit/webhooks";
+import type { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
+import type { EmitterWebhookEvent } from "@octokit/webhooks";
 import { captureException } from "@sentry/node";
-// @ts-ignore
 import humanId from "human-id";
 import markdownTable from "markdown-table";
-import { Probot, Context } from "probot";
+import type { Probot, Context } from "probot";
 
 import { getChangedPackages } from "./get-changed-packages";
 
@@ -13,25 +12,26 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
 
   const publishableReleases = releasePlan.releases.filter(
-    (x): x is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } => x.type !== "none",
+    (release): release is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
+      release.type !== "none",
   );
 
   let table = markdownTable([
     ["Name", "Type"],
-    ...publishableReleases.map((x) => {
+    ...publishableReleases.map((release) => {
       return [
-        x.name,
+        release.name,
         {
           major: "Major",
           minor: "Minor",
           patch: "Patch",
-        }[x.type],
+        }[release.type],
       ];
     }),
   ]);
 
   return `<details><summary>This PR includes ${
-    releasePlan.changesets.length
+    releasePlan.changesets.length > 0
       ? `changesets to release ${
           publishableReleases.length === 1 ? "1 package" : `${publishableReleases.length} packages`
         }`
@@ -39,7 +39,7 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   }</summary>
 
   ${
-    publishableReleases.length
+    publishableReleases.length > 0
       ? table
       : "When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types"
   }
@@ -83,9 +83,9 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 
 `;
 
-const getNewChangesetTemplate = (changedPackages: string[], title: string) =>
+const getNewChangesetTemplate = (changedPackages: ReadonlyArray<string>, title: string) =>
   encodeURIComponent(`---
-${changedPackages.map((x) => `"${x}": patch`).join("\n")}
+${changedPackages.map((pkgName) => `"${pkgName}": patch`).join("\n")}
 ---
 
 ${title}
@@ -98,8 +98,8 @@ const getCommentId = (
   context: PRContext,
   params: { repo: string; owner: string; issue_number: number },
 ) =>
-  context.octokit.issues.listComments(params).then((comments) => {
-    const changesetBotComment = comments.data.find(
+  context.octokit.issues.listComments(params).then((commentsResponse) => {
+    const changesetBotComment = commentsResponse.data.find(
       // TODO: find what the current user is in some way or something
       (comment) =>
         comment.user?.login === "changeset-bot[bot]" ||
@@ -111,8 +111,8 @@ const getCommentId = (
 const hasChangesetBeenAdded = (
   changedFilesPromise: ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>,
 ) =>
-  changedFilesPromise.then((files) =>
-    files.data.some(
+  changedFilesPromise.then((filesResponse) =>
+    filesResponse.data.some(
       (file) =>
         file.status === "added" &&
         /^\.changeset\/.+\.md$/.test(file.filename) &&
@@ -121,7 +121,7 @@ const hasChangesetBeenAdded = (
   );
 
 export default (app: Probot) => {
-  app.auth();
+  void app.auth();
   app.log("Yay, the app was loaded!");
 
   app.on(["pull_request.opened", "pull_request.synchronize"], async (context) => {
@@ -146,7 +146,7 @@ export default (app: Probot) => {
       });
 
       const [commentId, hasChangeset, { changedPackages, releasePlan }] = await Promise.all([
-        // we know the comment won't exist on opened events
+        // We know the comment won't exist on opened events
         // ok, well like technically that's wrong
         // but reducing time is nice here so that
         // deploying this doesn't cost money
@@ -158,7 +158,9 @@ export default (app: Probot) => {
           repo: context.payload.pull_request.head.repo.name,
           owner: context.payload.pull_request.head.repo.owner.login,
           ref: context.payload.pull_request.head.ref,
-          changedFiles: changedFilesPromise.then((x) => x.data.map((x) => x.filename)),
+          changedFiles: changedFilesPromise.then((filesResponse) =>
+            filesResponse.data.map(({ filename }) => filename),
+          ),
           octokit: context.octokit,
           installationToken: (
             await (await app.auth()).apps.createInstallationAccessToken({
@@ -177,7 +179,7 @@ export default (app: Probot) => {
             releasePlan: null,
           };
         }),
-      ] as const);
+      ]);
 
       let addChangesetUrl = `${context.payload.pull_request.head.repo.html_url}/new/${
         context.payload.pull_request.head.ref
@@ -196,13 +198,14 @@ export default (app: Probot) => {
           errFromFetchingChangedFiles,
       };
 
-      if (commentId != null) {
-        return context.octokit.issues.updateComment({
+      if (typeof commentId === "number") {
+        await context.octokit.issues.updateComment({
           ...prComment,
           comment_id: commentId,
         });
+        return;
       }
-      return context.octokit.issues.createComment(prComment);
+      await context.octokit.issues.createComment(prComment);
     } catch (err) {
       console.error(err);
       throw err;
