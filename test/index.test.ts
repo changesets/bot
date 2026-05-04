@@ -140,10 +140,10 @@ function usePrState(apiServer: ReturnType<typeof setupServer>, state: PrState) {
         >
       > = [];
       for (const [filename, file] of Object.entries(state.files)) {
-        if (typeof file !== "string") {
+        if (file && typeof file !== "string") {
           changedFiles.push({
             filename,
-            status: file![0].status,
+            status: file[0].status,
           });
         }
       }

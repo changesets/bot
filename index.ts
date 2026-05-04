@@ -151,13 +151,13 @@ export default (app: Probot) => {
         // deploying this doesn't cost money
         context.payload.action === "synchronize"
           ? getCommentId(context, { ...repo, issue_number: number })
-          : Promise.resolve(null),
+          : undefined,
         hasChangesetBeenAdded(changedFilesPromise),
         getChangedPackages({
           repo: context.payload.pull_request.head.repo.name,
           owner: context.payload.pull_request.head.repo.owner.login,
           ref: context.payload.pull_request.head.ref,
-          changedFiles: changedFilesPromise.then((x) => x.data.map(({ filename }) => filename)),
+          changedFiles: changedFilesPromise.then((files) => files.data.map(({ filename }) => filename)),
           octokit: context.octokit,
           installationToken: (
             await (await app.auth()).apps.createInstallationAccessToken({
@@ -176,7 +176,7 @@ export default (app: Probot) => {
             releasePlan: null,
           };
         }),
-      ] as const);
+      ]);
 
       let addChangesetUrl = `${context.payload.pull_request.head.repo.html_url}/new/${
         context.payload.pull_request.head.ref
@@ -195,7 +195,7 @@ export default (app: Probot) => {
           errFromFetchingChangedFiles,
       };
 
-      if (commentId !== null) {
+      if (typeof commentId === "number") {
         return context.octokit.issues.updateComment({
           ...prComment,
           comment_id: commentId,

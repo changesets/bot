@@ -15,6 +15,15 @@ import micromatch from "micromatch";
 import fetch from "node-fetch";
 import type { ProbotOctokit } from "probot";
 
+interface PackageJSON extends ChangesetPackageJSON {
+  workspaces?: Array<string> | { packages: Array<string> };
+  bolt?: { workspaces: Array<string> };
+}
+
+interface PnpmWorkspace {
+  packages: Array<string>;
+}
+
 export const getChangedPackages = async ({
   owner,
   repo,
@@ -61,11 +70,6 @@ export const getChangedPackages = async ({
       console.error(err);
       return "";
     }
-  }
-
-  interface PackageJSON extends ChangesetPackageJSON {
-    workspaces?: Array<string> | { packages: Array<string> };
-    bolt?: { workspaces: Array<string> };
   }
 
   async function getPackage(pkgPath: string): Promise<{ dir: string; packageJson: PackageJSON }> {
@@ -128,10 +132,6 @@ export const getChangedPackages = async ({
     | undefined;
 
   if (isPnpm) {
-    interface PnpmWorkspace {
-      packages: Array<string>;
-    }
-
     const pnpmWorkspaceContent = await fetchTextFile("pnpm-workspace.yaml");
     const pnpmWorkspace = safeLoad(pnpmWorkspaceContent) as PnpmWorkspace;
 
