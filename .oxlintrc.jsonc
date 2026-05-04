@@ -21,6 +21,7 @@
     "no-warning-comments": "off",
     "sort-keys": "off",
 
+    "vitest/no-conditional-in-test": "off",
     "jest/no-conditional-in-test": "off",
 
     "typescript/array-type": ["error", { "default": "generic", "readonly": "generic" }],

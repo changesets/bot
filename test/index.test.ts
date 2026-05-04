@@ -284,7 +284,6 @@ describe.concurrent("changeset-bot", () => {
     } as never);
 
     const commentRequests = requests.filter(
-      // oxlint-disable-next-line vitest/no-conditional-in-test
       (request) => request.path.includes("/comments") && request.method === "PATCH",
     );
 
