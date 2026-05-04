@@ -12,9 +12,7 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
 
   const publishableReleases = releasePlan.releases.filter(
-    (
-      release,
-    ): release is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
+    (release): release is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
       release.type !== "none",
   );
 

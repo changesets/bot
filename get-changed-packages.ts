@@ -186,7 +186,10 @@ export const getChangedPackages = async ({
   };
 
   if (tool) {
-    if (!Array.isArray(tool.globs) || !tool.globs.every((glob: unknown) => typeof glob === "string")) {
+    if (
+      !Array.isArray(tool.globs) ||
+      !tool.globs.every((glob: unknown) => typeof glob === "string")
+    ) {
       throw new Error("globs are not valid: " + JSON.stringify(tool.globs));
     }
     const matches = micromatch(potentialWorkspaceDirectories, tool.globs);
