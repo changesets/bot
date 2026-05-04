@@ -157,7 +157,9 @@ export default (app: Probot) => {
           repo: context.payload.pull_request.head.repo.name,
           owner: context.payload.pull_request.head.repo.owner.login,
           ref: context.payload.pull_request.head.ref,
-          changedFiles: changedFilesPromise.then((files) => files.data.map(({ filename }) => filename)),
+          changedFiles: changedFilesPromise.then((files) =>
+            files.data.map(({ filename }) => filename),
+          ),
           octokit: context.octokit,
           installationToken: (
             await (await app.auth()).apps.createInstallationAccessToken({
