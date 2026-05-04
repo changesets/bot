@@ -31,6 +31,7 @@
     "typescript/no-unsafe-type-assertion": "off",
     "typescript/no-unsafe-function-type": "error",
     "typescript/no-wrapper-object-types": "error",
+    "typescript/prefer-readonly-parameter-types": "off",
     "typescript/return-await": "off",
     "typescript/strict-boolean-expressions": "off",
   },

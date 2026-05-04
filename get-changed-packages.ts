@@ -16,12 +16,24 @@ import fetch from "node-fetch";
 import type { ProbotOctokit } from "probot";
 
 interface PackageJSON extends ChangesetPackageJSON {
-  workspaces?: Array<string> | { packages: Array<string> };
-  bolt?: { workspaces: Array<string> };
+  workspaces?: ReadonlyArray<string> | { packages: ReadonlyArray<string> };
+  bolt?: { workspaces: ReadonlyArray<string> };
 }
 
 interface PnpmWorkspace {
-  packages: Array<string>;
+  packages: ReadonlyArray<string>;
+}
+
+// TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
+// related thread: github.com/microsoft/TypeScript/issues/36554
+function isArray<T>(
+  arg: T | {},
+): arg is T extends ReadonlyArray<any>
+  ? unknown extends T
+    ? never
+    : ReadonlyArray<any>
+  : Array<any> {
+  return Array.isArray(arg);
 }
 
 export const getChangedPackages = async ({
@@ -35,7 +47,7 @@ export const getChangedPackages = async ({
   owner: string;
   repo: string;
   ref: string;
-  changedFiles: Array<string> | Promise<Array<string>>;
+  changedFiles: ReadonlyArray<string> | Promise<ReadonlyArray<string>>;
   octokit: InstanceType<typeof ProbotOctokit>;
   installationToken: string;
 }) => {
@@ -127,7 +139,7 @@ export const getChangedPackages = async ({
   let tool:
     | {
         tool: Tool;
-        globs: Array<string>;
+        globs: ReadonlyArray<string>;
       }
     | undefined;
 
@@ -143,7 +155,7 @@ export const getChangedPackages = async ({
     const rootPackageJsonContent = await rootPackageJsonContentsPromise;
 
     if (rootPackageJsonContent.workspaces) {
-      if (Array.isArray(rootPackageJsonContent.workspaces)) {
+      if (isArray(rootPackageJsonContent.workspaces)) {
         tool = {
           tool: "yarn",
           globs: rootPackageJsonContent.workspaces,
@@ -174,7 +186,7 @@ export const getChangedPackages = async ({
   };
 
   if (tool) {
-    if (!Array.isArray(tool.globs) || !tool.globs.every((x) => typeof x === "string")) {
+    if (!Array.isArray(tool.globs) || !tool.globs.every((glob: unknown) => typeof glob === "string")) {
       throw new Error("globs are not valid: " + JSON.stringify(tool.globs));
     }
     const matches = micromatch(potentialWorkspaceDirectories, tool.globs);
@@ -200,7 +212,7 @@ export const getChangedPackages = async ({
       : packages.packages.filter((pkg) =>
           changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`)),
         )
-    ).map((x) => x.packageJson.name),
+    ).map((pkg) => pkg.packageJson.name),
     releasePlan,
   };
 };

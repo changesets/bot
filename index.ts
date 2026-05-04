@@ -12,19 +12,22 @@ const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
 
   const publishableReleases = releasePlan.releases.filter(
-    (x): x is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } => x.type !== "none",
+    (
+      release,
+    ): release is ComprehensiveRelease & { type: Exclude<VersionType, "none"> } =>
+      release.type !== "none",
   );
 
   let table = markdownTable([
     ["Name", "Type"],
-    ...publishableReleases.map((x) => {
+    ...publishableReleases.map((release) => {
       return [
-        x.name,
+        release.name,
         {
           major: "Major",
           minor: "Minor",
           patch: "Patch",
-        }[x.type],
+        }[release.type],
       ];
     }),
   ]);
@@ -82,9 +85,9 @@ Not sure what this means? [Click here  to learn what changesets are](https://git
 
 `;
 
-const getNewChangesetTemplate = (changedPackages: Array<string>, title: string) =>
+const getNewChangesetTemplate = (changedPackages: ReadonlyArray<string>, title: string) =>
   encodeURIComponent(`---
-${changedPackages.map((x) => `"${x}": patch`).join("\n")}
+${changedPackages.map((pkgName) => `"${pkgName}": patch`).join("\n")}
 ---
 
 ${title}
@@ -97,8 +100,8 @@ const getCommentId = (
   context: PRContext,
   params: { repo: string; owner: string; issue_number: number },
 ) =>
-  context.octokit.issues.listComments(params).then((comments) => {
-    const changesetBotComment = comments.data.find(
+  context.octokit.issues.listComments(params).then((commentsResponse) => {
+    const changesetBotComment = commentsResponse.data.find(
       // TODO: find what the current user is in some way or something
       (comment) =>
         comment.user?.login === "changeset-bot[bot]" ||
@@ -110,8 +113,8 @@ const getCommentId = (
 const hasChangesetBeenAdded = (
   changedFilesPromise: ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>,
 ) =>
-  changedFilesPromise.then((files) =>
-    files.data.some(
+  changedFilesPromise.then((filesResponse) =>
+    filesResponse.data.some(
       (file) =>
         file.status === "added" &&
         /^\.changeset\/.+\.md$/.test(file.filename) &&
@@ -157,8 +160,8 @@ export default (app: Probot) => {
           repo: context.payload.pull_request.head.repo.name,
           owner: context.payload.pull_request.head.repo.owner.login,
           ref: context.payload.pull_request.head.ref,
-          changedFiles: changedFilesPromise.then((files) =>
-            files.data.map(({ filename }) => filename),
+          changedFiles: changedFilesPromise.then((filesResponse) =>
+            filesResponse.data.map(({ filename }) => filename),
           ),
           octokit: context.octokit,
           installationToken: (
@@ -198,12 +201,13 @@ export default (app: Probot) => {
       };
 
       if (typeof commentId === "number") {
-        return context.octokit.issues.updateComment({
+        await context.octokit.issues.updateComment({
           ...prComment,
           comment_id: commentId,
         });
+        return;
       }
-      return context.octokit.issues.createComment(prComment);
+      await context.octokit.issues.createComment(prComment);
     } catch (err) {
       console.error(err);
       throw err;
