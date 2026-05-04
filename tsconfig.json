@@ -1,12 +1,20 @@
 {
-  "extends": "@tsconfig/next/tsconfig.json",
   "compilerOptions": {
-    "allowJs": false,
-    "tsBuildInfoFile": "node_modules/.cache/.tsbuildinfo",
-    "forceConsistentCasingInFileNames": true,
+    "target": "esnext",
+    "module": "commonjs",
+    "noEmit": true,
     "strict": true,
-    "moduleResolution": "bundler"
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": false,
+    "incremental": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "ignoreDeprecations": "6.0"
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules"]
 }
