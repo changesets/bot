@@ -5,6 +5,7 @@
   "homepage": "https://github.com/apps/changeset-bot",
   "license": "MIT",
   "repository": "https://github.com/changesets/bot",
+  "type": "module",
   "scripts": {
     "format": "oxfmt",
     "format:check": "oxfmt --check",
