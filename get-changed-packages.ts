@@ -112,7 +112,7 @@ export const getChangedPackages = async ({
     if (!item.path) {
       continue;
     }
-    if (item.path.endsWith("/package.json")) {
+    if (nodePath.basename(item.path) === "package.json") {
       const dirPath = nodePath.dirname(item.path);
       potentialWorkspaceDirectories.push(dirPath);
     } else if (item.path === "pnpm-workspace.yaml") {
@@ -132,7 +132,10 @@ export const getChangedPackages = async ({
       const id = res[1];
 
       changesetPromises.push(
-        fetchTextFile(item.path).then((text) => ({ ...parseChangeset(text), id })),
+        fetchTextFile(item.path).then((text) => ({
+          ...parseChangeset(text),
+          id,
+        })),
       );
     }
   }
