@@ -457,6 +457,75 @@ describe.concurrent("changeset-bot", () => {
     `);
   });
 
+  it("shows release details for the root package when workspaces explicitly include dot", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({}),
+        ".changeset/root-change.md": [
+          {
+            status: "added",
+          },
+          `---
+"root-package": patch
+---
+
+thing
+`,
+        ],
+        "package.json": JSON.stringify({
+          name: "root-package",
+          version: "1.0.0",
+          workspaces: [".", "packages/*"],
+        }),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+        }),
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  🦋  Changeset detected
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      **The changes in this PR will be included in the next version bump.**
+
+      <details><summary>This PR includes changesets to release 1 package</summary>
+
+        | Name         | Type  |
+      | ------------ | ----- |
+      | root-package | Patch |
+
+      </details>
+
+      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+      [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
+
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
+  });
+
   it("includes only changed yarn workspace packages in the add-changeset link", async ({
     expect,
     task,
