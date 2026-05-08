@@ -1,6 +1,6 @@
 import { createNodeMiddleware, createProbot } from "probot";
 
-import app from "../index";
+import app from "../index.ts";
 
 // Requires:
 // - APP_ID
