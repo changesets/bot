@@ -150,10 +150,12 @@ export const getChangedPackages = async ({
     const pnpmWorkspaceContent = await fetchTextFile("pnpm-workspace.yaml");
     const pnpmWorkspace = safeLoad(pnpmWorkspaceContent) as PnpmWorkspace;
 
-    tool = {
-      tool: "pnpm",
-      globs: pnpmWorkspace.packages,
-    };
+    if (pnpmWorkspace.packages) {
+      tool = {
+        tool: "pnpm",
+        globs: pnpmWorkspace.packages,
+      };
+    }
   } else {
     const rootPackageJsonContent = await rootPackageJsonContentsPromise;
 
