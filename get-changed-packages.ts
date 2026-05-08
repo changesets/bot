@@ -10,7 +10,7 @@ import type {
   PackageJSON as ChangesetPackageJSON,
 } from "@changesets/types";
 import type { Packages, Tool } from "@manypkg/get-packages";
-import { safeLoad } from "js-yaml";
+import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import fetch from "node-fetch";
 import type { ProbotOctokit } from "probot";
@@ -145,7 +145,7 @@ export const getChangedPackages = async ({
 
   if (isPnpm) {
     const pnpmWorkspaceContent = await fetchTextFile("pnpm-workspace.yaml");
-    const pnpmWorkspace = safeLoad(pnpmWorkspaceContent) as PnpmWorkspace;
+    const pnpmWorkspace = jsYaml.safeLoad(pnpmWorkspaceContent) as PnpmWorkspace;
 
     tool = {
       tool: "pnpm",
