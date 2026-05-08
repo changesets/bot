@@ -21,6 +21,16 @@
     "no-warning-comments": "off",
     "sort-keys": "off",
 
+    "import/extensions": [
+      "error",
+      {
+        "ts": "always",
+        "tsx": "always",
+        "ignorePackages": true,
+        "checkTypeImports": true,
+      },
+    ],
+
     "vitest/no-conditional-in-test": "off",
     "jest/no-conditional-in-test": "off",
 

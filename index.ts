@@ -6,7 +6,7 @@ import humanId from "human-id";
 import markdownTable from "markdown-table";
 import type { Probot, Context } from "probot";
 
-import { getChangedPackages } from "./get-changed-packages";
+import { getChangedPackages } from "./get-changed-packages.ts";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
