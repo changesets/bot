@@ -697,6 +697,59 @@ thing
     `);
   });
 
+  it("uses the root package when pnpm-workspace.yaml has no packages defined", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({}),
+        "package.json": JSON.stringify({
+          name: "root-package",
+        }),
+        "pnpm-workspace.yaml": "onlyBuiltDependencies:\n  - esbuild\n",
+        "src/index.ts": [{ status: "added" }, "export {};"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "###  ⚠️  No Changeset found
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+
+      <details><summary>This PR includes no changesets</summary>
+
+        When changesets are added to this PR, you'll see the packages that this PR includes changesets for and the associated semver types
+
+      </details>
+
+      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+
+      [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22root-package%22%3A%20patch%0A---%0A%0Athing%0A)
+
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
+  });
+
   it("shows release details when a changed changeset parses into a release plan", async ({
     expect,
     task,
