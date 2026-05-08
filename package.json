@@ -30,12 +30,10 @@
     "@types/markdown-table": "^2.0.0",
     "@types/micromatch": "^4.0.1",
     "@types/node": "^25.5.0",
-    "@types/node-fetch": "^2.5.5",
     "human-id": "^1.0.2",
     "js-yaml": "^3.14.0",
     "markdown-table": "^2.0.0",
     "micromatch": "^4.0.2",
-    "node-fetch": "^2.6.1",
     "probot": "^12.2.4",
     "typescript": "^6.0.2"
   },

@@ -12,7 +12,6 @@ import type {
 import type { Packages, Tool } from "@manypkg/get-packages";
 import jsYaml from "js-yaml";
 import micromatch from "micromatch";
-import fetch from "node-fetch";
 import type { ProbotOctokit } from "probot";
 
 interface PackageJSON extends ChangesetPackageJSON {
