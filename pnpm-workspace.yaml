@@ -1,0 +1,5 @@
+allowBuilds:
+  msw: true
+
+dedupePeers: true
+dedupePeerDependents: true
