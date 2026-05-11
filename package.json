@@ -9,7 +9,7 @@
   "scripts": {
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "lint": "yarn lint:js && yarn lint:knip",
+    "lint": "pnpm lint:js && pnpm lint:knip",
     "lint:js": "oxlint",
     "lint:js:fix": "oxlint --fix",
     "lint:js:ci": "oxlint --format=github",
@@ -46,5 +46,5 @@
     "vite": "^8.0.3",
     "vitest": "^4.1.2"
   },
-  "packageManager": "yarn@1.22.22"
+  "packageManager": "pnpm@11.0.9+sha512.34ce82e6780233cf9cad8685029a8f81d2e06196c5a9bad98879f7424940c6817c4e4524fb7d38b8553ceed48b9758b8ebaf1abd3600c232c4c8cf7366086f38"
 }

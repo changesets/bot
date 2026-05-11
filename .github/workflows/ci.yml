@@ -28,7 +28,7 @@ jobs:
         uses: ./.github/actions/ci-setup
 
       - name: Run test
-        run: yarn test
+        run: pnpm test
 
   lint:
     name: Lint
@@ -44,16 +44,16 @@ jobs:
         uses: ./.github/actions/ci-setup
 
       - name: Run format:check
-        run: yarn format:check
+        run: pnpm format:check
 
       - name: Run lint
-        run: yarn lint:js:ci
+        run: pnpm lint:js:ci
 
       - name: Run knip
-        run: yarn lint:knip
+        run: pnpm lint:knip
 
       - name: Run typecheck
-        run: yarn typecheck
+        run: pnpm typecheck
 
   ci-ok:
     name: CI OK
