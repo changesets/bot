@@ -10,6 +10,7 @@
     "rewriteRelativeImportExtensions": true,
     "skipLibCheck": true,
     "lib": ["esnext"],
+    "types": ["node"],
     "allowJs": false,
     "incremental": false,
     "resolveJsonModule": true,
