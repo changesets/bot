@@ -15,9 +15,9 @@ dedupePeers: true
 dedupePeerDependents: true
 minimumReleaseAge: 10080
 patchedDependencies:
-  '@vercel/node@5.6.11': patches/@vercel__node@5.6.11.patch
+  "@vercel/node@5.6.11": patches/@vercel__node@5.6.11.patch
 shellEmulator: true
 trustPolicy: no-downgrade
 trustPolicyExclude:
-  - 'probot@12.4.0'
-  - 'semver@6.3.1'
+  - "probot@12.4.0"
+  - "semver@6.3.1"
