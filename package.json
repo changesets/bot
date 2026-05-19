@@ -6,6 +6,9 @@
   "license": "MIT",
   "repository": "https://github.com/changesets/bot",
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "format": "oxfmt",
     "format:check": "oxfmt --check",
