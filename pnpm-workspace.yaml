@@ -7,7 +7,14 @@ packages:
   - "."
 
 allowBuilds:
+  esbuild: true
   msw: true
 
+blockExoticSubdeps: true
 dedupePeers: true
 dedupePeerDependents: true
+minimumReleaseAge: 10080
+patchedDependencies:
+  '@vercel/node@5.6.11': patches/@vercel__node@5.6.11.patch
+shellEmulator: true
+trustPolicy: no-downgrade

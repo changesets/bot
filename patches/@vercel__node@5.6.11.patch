@@ -1,0 +1,12 @@
+diff --git a/dist/index.js b/dist/index.js
+index 7658a1aa946a5c7bfa78d3b3fa2108532f7be747..c02b0d95579120474c1b1ed374c5ba453fceb2bf 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -70143,6 +70143,7 @@ function register(opts = {}) {
+       getCurrentDirectory: () => cwd,
+       getCompilationSettings: () => config.options,
+       getDefaultLibFileName: () => ts.getDefaultLibFilePath(config.options),
++      realpath: cachedLookup(debugFn("realpath", ts.sys.realpath)),
+       getCustomTransformers: () => transformers,
+       // This hurts performance, but for Express, type checking will fail to find @types/express without it
+       // so keeping it on for now for Express/Hono projects
