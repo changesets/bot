@@ -14,7 +14,6 @@
     "lint:js:fix": "oxlint --fix",
     "lint:js:ci": "oxlint --format=github",
     "lint:knip": "knip",
-    "vercel:build": "vercel build",
     "typecheck": "tsc --noEmit",
     "test": "vitest"
   },
@@ -44,7 +43,6 @@
     "oxfmt": "^0.42.0",
     "oxlint": "^1.58.0",
     "oxlint-tsgolint": "^0.19.0",
-    "vercel": "50.28.0",
     "vite": "^8.0.3",
     "vitest": "^4.1.2"
   },
