@@ -1,5 +1,18 @@
+packages:
+  # Why mark the repository root as a package?
+  #
+  # It appears that Vercel fails during the `pnpm install` step
+  # when the packages field is missing from pnpm-workspace.yaml.
+  # @see https://github.com/changesets/bot/pull/113
+  - "."
+
 allowBuilds:
   msw: true
 
+blockExoticSubdeps: true
 dedupePeers: true
 dedupePeerDependents: true
+minimumReleaseAge: 10080
+shellEmulator: true
+trustPolicy: no-downgrade
+  - "probot@12.4.0"

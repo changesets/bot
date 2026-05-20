@@ -1,4 +1,5 @@
 {
   "$schema": "./node_modules/knip/schema.json",
-  "entry": ["api/**/*.ts"]
+  "entry": ["api/**/*.ts"],
+  "ignore": [".pnpm-store/**"]
 }
