@@ -2,7 +2,7 @@ import { ValidationError } from "@changesets/errors";
 import type { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
 import type { EmitterWebhookEvent } from "@octokit/webhooks";
 import { captureException } from "@sentry/node";
-import humanId from "human-id";
+import { humanId } from "human-id";
 import markdownTable from "markdown-table";
 import type { Probot, Context } from "probot";
 
