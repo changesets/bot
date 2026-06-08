@@ -6,7 +6,6 @@ export function isChangeset(filename: string) {
   if (!filename.startsWith(".changeset/")) return false;
 
   const file = filename.slice(".changeset/".length);
-  if (file.includes("/")) return false; // Ignore nested files
 
   // Perform same check as `@changesets/read`
   return (
