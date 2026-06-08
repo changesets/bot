@@ -14,6 +14,8 @@ import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import type { ProbotOctokit } from "probot";
 
+import { isChangeset } from "./is-changeset.ts";
+
 interface PackageJSON extends ChangesetPackageJSON {
   workspaces?: ReadonlyArray<string> | { packages: ReadonlyArray<string> };
   bolt?: { workspaces: ReadonlyArray<string> };
@@ -118,12 +120,7 @@ export const getChangedPackages = async ({
       isPnpm = true;
     } else if (item.path === ".changeset/pre.json") {
       preStatePromise = fetchJsonFile(".changeset/pre.json");
-    } else if (
-      item.path !== ".changeset/README.md" &&
-      item.path.startsWith(".changeset") &&
-      item.path.endsWith(".md") &&
-      changedFiles.includes(item.path)
-    ) {
+    } else if (changedFiles.includes(item.path) && isChangeset(item.path)) {
       const res = /\.changeset\/([^.]+)\.md/.exec(item.path);
       if (!res) {
         throw new Error("could not get name from changeset filename");

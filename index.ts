@@ -7,6 +7,7 @@ import markdownTable from "markdown-table";
 import type { Probot, Context } from "probot";
 
 import { getChangedPackages } from "./get-changed-packages.ts";
+import { isChangeset } from "./is-changeset.ts";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
   if (!releasePlan) return "";
@@ -112,12 +113,7 @@ const hasChangesetBeenAdded = (
   changedFilesPromise: ReturnType<PRContext["octokit"]["pulls"]["listFiles"]>,
 ) =>
   changedFilesPromise.then((filesResponse) =>
-    filesResponse.data.some(
-      (file) =>
-        file.status === "added" &&
-        /^\.changeset\/.+\.md$/.test(file.filename) &&
-        file.filename !== ".changeset/README.md",
-    ),
+    filesResponse.data.some((file) => file.status === "added" && isChangeset(file.filename)),
   );
 
 export default (app: Probot) => {
