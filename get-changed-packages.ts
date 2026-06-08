@@ -1,5 +1,4 @@
 import nodePath from "path";
-
 import assembleReleasePlan from "@changesets/assemble-release-plan";
 import { parse as parseConfig } from "@changesets/config";
 import parseChangeset from "@changesets/parse";

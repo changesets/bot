@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { Probot, ProbotOctokit } from "probot";
 import { aroundEach, beforeAll, describe, it } from "vitest";
-
 import type { PRContext } from "../index.ts";
 import changesetBot from "../index.ts";
-
 import pullRequestOpen from "./fixtures/pull_request.opened.json";
 import pullRequestSynchronize from "./fixtures/pull_request.synchronize.json";
 import releasePullRequestOpen from "./fixtures/release_pull_request.opened.json";
