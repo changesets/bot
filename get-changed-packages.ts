@@ -12,7 +12,6 @@ import type { Packages, Tool } from "@manypkg/get-packages";
 import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import type { ProbotOctokit } from "probot";
-
 import { isChangeset } from "./is-changeset.ts";
 
 interface PackageJSON extends ChangesetPackageJSON {
