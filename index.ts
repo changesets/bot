@@ -5,7 +5,6 @@ import { captureException } from "@sentry/node";
 import { humanId } from "human-id";
 import markdownTable from "markdown-table";
 import type { Probot, Context } from "probot";
-
 import { getChangedPackages } from "./get-changed-packages.ts";
 import { isChangeset } from "./is-changeset.ts";
 
