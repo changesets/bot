@@ -13,6 +13,8 @@ blockExoticSubdeps: true
 dedupePeers: true
 dedupePeerDependents: true
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - "@changesets/*"
 shellEmulator: true
 trustPolicy: no-downgrade
   - "probot@12.4.0"
