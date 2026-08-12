@@ -51,7 +51,7 @@ const getAbsentMessage = (
   commitSha: string,
   addChangesetUrl: string,
   releasePlan: ReleasePlan | null,
-) => `###  ⚠️  No Changeset found
+) => `### ⚠️ No Changeset found
 
 Latest commit: ${commitSha}
 
@@ -59,7 +59,7 @@ Merging this PR will not cause a version bump for any packages. If these changes
 
 ${getReleasePlanMessage(releasePlan)}
 
-[Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+[Click here to learn what changesets are, and how to add one](https://changesets.dev/faq).
 
 [Click here if you're a maintainer who wants to add a changeset to this PR](${addChangesetUrl})
 
@@ -69,7 +69,7 @@ const getApproveMessage = (
   commitSha: string,
   addChangesetUrl: string,
   releasePlan: ReleasePlan | null,
-) => `###  🦋  Changeset detected
+) => `### 🦋 Changeset detected
 
 Latest commit: ${commitSha}
 
@@ -77,7 +77,7 @@ Latest commit: ${commitSha}
 
 ${getReleasePlanMessage(releasePlan)}
 
-Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+Not sure what this means? [Click here to learn what changesets are](https://changesets.dev/faq).
 
 [Click here if you're a maintainer who wants to add another changeset to this PR](${addChangesetUrl})
 
