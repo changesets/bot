@@ -247,7 +247,7 @@ describe.concurrent("changeset-bot", () => {
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -300,7 +300,7 @@ describe.concurrent("changeset-bot", () => {
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -347,7 +347,7 @@ describe.concurrent("changeset-bot", () => {
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -392,7 +392,7 @@ describe.concurrent("changeset-bot", () => {
 
       </details>
 
-      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      [Click here to learn what changesets are, and how to add one](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -441,7 +441,7 @@ describe.concurrent("changeset-bot", () => {
 
       </details>
 
-      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      [Click here to learn what changesets are, and how to add one](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22root-package%22%3A%20patch%0A---%0A%0Athing%0A)
 
@@ -510,7 +510,7 @@ thing
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -569,7 +569,7 @@ thing
 
       </details>
 
-      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      [Click here to learn what changesets are, and how to add one](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22pkg-a%22%3A%20patch%0A---%0A%0Athing%0A)
 
@@ -628,7 +628,7 @@ thing
 
       </details>
 
-      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      [Click here to learn what changesets are, and how to add one](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22pkg-ab%22%3A%20patch%0A---%0A%0Athing%0A)
 
@@ -681,7 +681,7 @@ thing
 
       </details>
 
-      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      [Click here to learn what changesets are, and how to add one](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22pkg-a%22%3A%20patch%0A---%0A%0Athing%0A)
 
@@ -734,7 +734,7 @@ thing
 
       </details>
 
-      [Click here to learn what changesets are, and how to add one](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      [Click here to learn what changesets are, and how to add one](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22root-package%22%3A%20patch%0A---%0A%0Athing%0A)
 
@@ -799,7 +799,7 @@ add feature
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://github.com/changesets/changesets/blob/main/docs/adding-a-changeset.md).
+      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
