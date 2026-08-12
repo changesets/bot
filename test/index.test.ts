@@ -235,7 +235,7 @@ describe.concurrent("changeset-bot", () => {
       [
         {
           "body": {
-            "body": "###  🦋  Changeset detected
+            "body": "### 🦋 Changeset detected
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -247,7 +247,7 @@ describe.concurrent("changeset-bot", () => {
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
+      Not sure what this means? [Click here to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -288,7 +288,7 @@ describe.concurrent("changeset-bot", () => {
       [
         {
           "body": {
-            "body": "###  🦋  Changeset detected
+            "body": "### 🦋 Changeset detected
 
       Latest commit: 10a63035fe8155b86b1060c89873e9a03c6fe673
 
@@ -300,7 +300,7 @@ describe.concurrent("changeset-bot", () => {
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
+      Not sure what this means? [Click here to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -335,7 +335,7 @@ describe.concurrent("changeset-bot", () => {
       [
         {
           "body": {
-            "body": "###  🦋  Changeset detected
+            "body": "### 🦋 Changeset detected
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -347,7 +347,7 @@ describe.concurrent("changeset-bot", () => {
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
+      Not sure what this means? [Click here to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -380,7 +380,7 @@ describe.concurrent("changeset-bot", () => {
       [
         {
           "body": {
-            "body": "###  ⚠️  No Changeset found
+            "body": "### ⚠️ No Changeset found
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -429,7 +429,7 @@ describe.concurrent("changeset-bot", () => {
       [
         {
           "body": {
-            "body": "###  ⚠️  No Changeset found
+            "body": "### ⚠️ No Changeset found
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -496,7 +496,7 @@ thing
       [
         {
           "body": {
-            "body": "###  🦋  Changeset detected
+            "body": "### 🦋 Changeset detected
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -510,7 +510,7 @@ thing
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
+      Not sure what this means? [Click here to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
@@ -557,7 +557,7 @@ thing
       [
         {
           "body": {
-            "body": "###  ⚠️  No Changeset found
+            "body": "### ⚠️ No Changeset found
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -616,7 +616,7 @@ thing
       [
         {
           "body": {
-            "body": "###  ⚠️  No Changeset found
+            "body": "### ⚠️ No Changeset found
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -669,7 +669,7 @@ thing
       [
         {
           "body": {
-            "body": "###  ⚠️  No Changeset found
+            "body": "### ⚠️ No Changeset found
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -722,7 +722,7 @@ thing
       [
         {
           "body": {
-            "body": "###  ⚠️  No Changeset found
+            "body": "### ⚠️ No Changeset found
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -785,7 +785,7 @@ add feature
       [
         {
           "body": {
-            "body": "###  🦋  Changeset detected
+            "body": "### 🦋 Changeset detected
 
       Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
 
@@ -799,7 +799,7 @@ add feature
 
       </details>
 
-      Not sure what this means? [Click here  to learn what changesets are](https://changesets.dev/faq).
+      Not sure what this means? [Click here to learn what changesets are](https://changesets.dev/faq).
 
       [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
 
