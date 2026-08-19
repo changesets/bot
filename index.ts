@@ -1,11 +1,10 @@
-import { ValidationError } from "@changesets/errors";
 import type { ReleasePlan, ComprehensiveRelease, VersionType } from "@changesets/types";
 import type { EmitterWebhookEvent } from "@octokit/webhooks";
 import { captureException } from "@sentry/node";
 import { humanId } from "human-id";
 import markdownTable from "markdown-table";
 import type { Probot, Context } from "probot";
-import { getChangedPackages } from "./get-changed-packages.ts";
+import { ConfigValidationError, getChangedPackages } from "./get-changed-packages.ts";
 import { isChangeset } from "./is-changeset.ts";
 
 const getReleasePlanMessage = (releasePlan: ReleasePlan | null) => {
@@ -163,7 +162,7 @@ export default (app: Probot) => {
             })
           ).data.token,
         }).catch((err) => {
-          if (err instanceof ValidationError) {
+          if (err instanceof ConfigValidationError) {
             errFromFetchingChangedFiles = `<details><summary>💥 An error occurred when fetching the changed packages and changesets in this PR</summary>\n\n\`\`\`\n${err.message}\n\`\`\`\n\n</details>\n`;
           } else {
             console.error(err);

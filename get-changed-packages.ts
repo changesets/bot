@@ -1,14 +1,15 @@
 import nodePath from "path";
-import assembleReleasePlan from "@changesets/assemble-release-plan";
-import { parse as parseConfig } from "@changesets/config";
-import parseChangeset from "@changesets/parse";
+import { assembleReleasePlan } from "@changesets/assemble-release-plan";
+import { validateConfig } from "@changesets/config";
+import { parseChangesetFile } from "@changesets/parse";
 import type {
   NewChangeset,
+  Package,
+  Packages,
   PreState,
   WrittenConfig,
   PackageJSON as ChangesetPackageJSON,
 } from "@changesets/types";
-import type { Packages, Tool } from "@manypkg/get-packages";
 import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import type { ProbotOctokit } from "probot";
@@ -22,6 +23,14 @@ interface PackageJSON extends ChangesetPackageJSON {
 interface PnpmWorkspace {
   packages: ReadonlyArray<string>;
 }
+
+type ToolType = Packages["tool"]["type"];
+
+/**
+ * `@changesets/config` reports validation issues instead of throwing,
+ * so we wrap them to be able to surface them in the PR comment.
+ */
+export class ConfigValidationError extends Error {}
 
 // TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
 // related thread: github.com/microsoft/TypeScript/issues/36554
@@ -127,7 +136,7 @@ export const getChangedPackages = async ({
 
       changesetPromises.push(
         fetchTextFile(item.path).then((text) => ({
-          ...parseChangeset(text),
+          ...parseChangesetFile(text),
           id,
         })),
       );
@@ -135,7 +144,7 @@ export const getChangedPackages = async ({
   }
   let tool:
     | {
-        tool: Tool;
+        type: ToolType;
         globs: ReadonlyArray<string>;
       }
     | undefined;
@@ -146,7 +155,7 @@ export const getChangedPackages = async ({
 
     if (pnpmWorkspace.packages) {
       tool = {
-        tool: "pnpm",
+        type: "pnpm",
         globs: pnpmWorkspace.packages,
       };
     }
@@ -156,18 +165,18 @@ export const getChangedPackages = async ({
     if (rootPackageJsonContent.workspaces) {
       if (isArray(rootPackageJsonContent.workspaces)) {
         tool = {
-          tool: "yarn",
+          type: "yarn",
           globs: rootPackageJsonContent.workspaces,
         };
       } else {
         tool = {
-          tool: "yarn",
+          type: "yarn",
           globs: rootPackageJsonContent.workspaces.packages,
         };
       }
     } else if (rootPackageJsonContent.bolt && rootPackageJsonContent.bolt.workspaces) {
       tool = {
-        tool: "bolt",
+        type: "bolt",
         globs: rootPackageJsonContent.bolt.workspaces,
       };
     }
@@ -175,12 +184,15 @@ export const getChangedPackages = async ({
 
   const rootPackageJsonContent = await rootPackageJsonContentsPromise;
 
+  const rootPackage: Package = {
+    dir: "/",
+    packageJson: rootPackageJsonContent,
+  };
+
   const packages: Packages = {
-    root: {
-      dir: "/",
-      packageJson: rootPackageJsonContent,
-    },
-    tool: tool ? tool.tool : "root",
+    rootDir: "/",
+    rootPackage,
+    tool: { type: tool ? tool.type : "root" },
     packages: [],
   };
 
@@ -195,26 +207,59 @@ export const getChangedPackages = async ({
 
     packages.packages = await Promise.all(matches.map((dir) => getPackage(dir)));
   } else {
-    packages.packages.push(packages.root);
+    packages.packages.push(rootPackage);
   }
   if (hasErrored) {
     throw new Error("an error occurred when fetching files");
   }
 
+  const rawConfig = await rawConfigPromise;
+
+  const configResult = validateConfig(
+    {
+      ...rawConfig,
+      // `@changesets/config@4` defaults `privatePackages.version` to `false`,
+      // while previous versions defaulted it to `true`.
+      // Repositories that don't opt in explicitly would silently stop seeing their private packages reported,
+      // so the previous default is restored here.
+      privatePackages:
+        typeof rawConfig.privatePackages === "object"
+          ? { version: true, ...rawConfig.privatePackages }
+          : (rawConfig.privatePackages ?? { version: true }),
+    },
+    packages,
+  );
+
+  for (const warning of configResult.warnings) {
+    console.warn(warning);
+  }
+
+  if (configResult.errors) {
+    throw new ConfigValidationError(
+      "Some errors occurred when validating the changesets config:\n" +
+        configResult.errors.join("\n"),
+    );
+  }
+
   const releasePlan = assembleReleasePlan(
     await Promise.all(changesetPromises),
     packages,
-    parseConfig(await rawConfigPromise, packages),
+    configResult.config,
     await preStatePromise,
   );
 
-  return {
-    changedPackages: (packages.tool === "root"
+  const containsChangedFile = (pkg: Package) =>
+    changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`));
+
+  // A root-only project has a single package covering the whole repository,
+  // so there is no directory to narrow the changed files down to.
+  const changedPackages =
+    packages.tool.type === "root"
       ? packages.packages
-      : packages.packages.filter((pkg) =>
-          changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`)),
-        )
-    ).map((pkg) => pkg.packageJson.name),
+      : packages.packages.filter(containsChangedFile);
+
+  return {
+    changedPackages: changedPackages.map((pkg) => pkg.packageJson.name),
     releasePlan,
   };
 };
