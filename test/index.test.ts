@@ -931,6 +931,36 @@ add feature
     `);
   });
 
+  it("reports malformed changeset errors in the comment", async ({ expect, task }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        ".changeset/malformed.md": [{ status: "added" }, "not a valid changeset"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+
+    assert.equal(commentRequests.length, 1);
+    const commentBody = commentRequests[0].body;
+    assert.ok(
+      commentBody &&
+        typeof commentBody === "object" &&
+        "body" in commentBody &&
+        typeof commentBody.body === "string",
+    );
+    expect(commentBody.body).toContain(
+      "could not parse changeset - missing or invalid frontmatter.",
+    );
+  });
+
   it("shouldn't add a comment to a release pull request", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {

@@ -26,11 +26,8 @@ interface PnpmWorkspace {
 
 type ToolType = Packages["tool"]["type"];
 
-/**
- * `@changesets/config` reports validation issues instead of throwing,
- * so we wrap them to be able to surface them in the PR comment.
- */
-export class ConfigValidationError extends Error {}
+/** Expected validation failures that should be surfaced in the PR comment. */
+export class UserValidationError extends Error {}
 
 // TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
 // related thread: github.com/microsoft/TypeScript/issues/36554
@@ -135,10 +132,18 @@ export const getChangedPackages = async ({
       const id = res[1];
 
       changesetPromises.push(
-        fetchTextFile(item.path).then((text) => ({
-          ...parseChangesetFile(text),
-          id,
-        })),
+        fetchTextFile(item.path).then((text) => {
+          try {
+            return {
+              ...parseChangesetFile(text),
+              id,
+            };
+          } catch (error) {
+            throw new UserValidationError(Error.isError(error) ? error.message : String(error), {
+              cause: error,
+            });
+          }
+        }),
       );
     }
   }
@@ -235,7 +240,7 @@ export const getChangedPackages = async ({
   }
 
   if (configResult.errors) {
-    throw new ConfigValidationError(
+    throw new UserValidationError(
       "Some errors occurred when validating the changesets config:\n" +
         configResult.errors.join("\n"),
     );
