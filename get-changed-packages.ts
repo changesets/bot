@@ -11,7 +11,7 @@ import type {
   PackageJSON as ChangesetPackageJSON,
 } from "@changesets/types";
 import jsYaml from "js-yaml";
-import micromatch from "micromatch";
+import picomatch from "picomatch";
 import type { ProbotOctokit } from "probot";
 import subset from "semver/ranges/subset.js";
 import { isChangeset } from "./is-changeset.ts";
@@ -131,7 +131,31 @@ function matchGlobs(
 ): Array<string> {
   return paths.filter((path) => {
     const relativePath = nodePath.relative(cwd, path) || ".";
-    return micromatch.isMatch(relativePath, globs);
+    return globMatchSome([relativePath], globs);
+  });
+}
+
+// Mirrors https://github.com/changesets/changesets/blob/5eeb0125f2766b9458aa1725900430b27b24116e/packages/git/src/index.ts#L346-L374
+function globMatchSome(paths: ReadonlyArray<string>, patterns?: ReadonlyArray<string>): boolean {
+  if (!patterns) return paths.length > 0;
+
+  const matchers = patterns.map((pattern) => picomatch(pattern, undefined, true));
+  return paths.some((path) => {
+    if (path.includes("\\")) {
+      path = path.replaceAll("\\", "/");
+    }
+
+    let passed = false;
+    for (const matcher of matchers) {
+      if (!passed) {
+        if (!matcher.state.negated && matcher(path)) {
+          passed = true;
+        }
+      } else if (matcher.state.negated && !matcher(path)) {
+        passed = false;
+      }
+    }
+    return passed;
   });
 }
 
@@ -335,7 +359,7 @@ export const getChangedPackages = async ({
     );
   }
 
-  // https://github.com/changesets/changesets/blob/6c250f58a128350c6905ed16691a25bf0c8bae0c/packages/git/src/index.ts#L264-L286
+  // Mirrors https://github.com/changesets/changesets/blob/5eeb0125f2766b9458aa1725900430b27b24116e/packages/git/src/index.ts#L273-L304
   const changedPackages = packages.packages
     .toSorted((pkgA, pkgB) => pkgB.dir.length - pkgA.dir.length)
     .filter((pkg) => {
@@ -353,7 +377,7 @@ export const getChangedPackages = async ({
 
       return (
         changedPackageFiles.length > 0 &&
-        micromatch(changedPackageFiles, rawConfig.changedFilePatterns ?? ["**"]).length > 0
+        globMatchSome(changedPackageFiles, rawConfig.changedFilePatterns ?? ["**"])
       );
     })
     .map((pkg) => pkg.packageJson.name);

@@ -755,7 +755,7 @@ thing
     const { requests } = usePrState(server, {
       files: {
         ".changeset/config.json": JSON.stringify({
-          changedFilePatterns: ["src/**"],
+          changedFilePatterns: ["src/**", "!src/generated/**"],
         }),
         "package.json": JSON.stringify({
           name: "test",
@@ -769,6 +769,13 @@ thing
           name: "pkg-b",
         }),
         "packages/b/src/index.ts": [{ status: "added" }, "export const b = true;"],
+        "packages/c/package.json": JSON.stringify({
+          name: "pkg-c",
+        }),
+        "packages/c/src/generated/index.ts": [
+          { status: "added" },
+          "export const generated = true;",
+        ],
       },
       comments: [],
     });
@@ -783,6 +790,7 @@ thing
 
     expect(serializedRequests).toContain("%22pkg-b%22");
     expect(serializedRequests).not.toContain("%22pkg-a%22");
+    expect(serializedRequests).not.toContain("%22pkg-c%22");
   });
 
   it("attributes changed files to the deepest matching workspace package", async ({
