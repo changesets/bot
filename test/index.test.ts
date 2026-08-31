@@ -747,6 +747,79 @@ thing
     `);
   });
 
+  it("respects changedFilePatterns when building the add-changeset link", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({
+          changedFilePatterns: ["src/**"],
+        }),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+        }),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+        }),
+        "packages/a/README.md": [{ status: "added" }, "# pkg-a"],
+        "packages/b/package.json": JSON.stringify({
+          name: "pkg-b",
+        }),
+        "packages/b/src/index.ts": [{ status: "added" }, "export const b = true;"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+    const serializedRequests = JSON.stringify(commentRequests);
+
+    expect(serializedRequests).toContain("%22pkg-b%22");
+    expect(serializedRequests).not.toContain("%22pkg-a%22");
+  });
+
+  it("attributes changed files to the deepest matching workspace package", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({}),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*", "packages/*/nested"],
+        }),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+        }),
+        "packages/a/nested/package.json": JSON.stringify({
+          name: "pkg-a-nested",
+        }),
+        "packages/a/nested/src/index.ts": [{ status: "added" }, "export const nested = true;"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+    const serializedRequests = JSON.stringify(commentRequests);
+
+    expect(serializedRequests).toContain("%22pkg-a-nested%22");
+    expect(serializedRequests).not.toContain("%22pkg-a%22%3A");
+  });
+
   it("shows release details when a changed changeset parses into a release plan", async ({
     expect,
     task,
