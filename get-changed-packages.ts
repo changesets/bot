@@ -13,8 +13,8 @@ import type {
 import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import type { ProbotOctokit } from "probot";
+import subset from "semver/ranges/subset.js";
 import { isChangeset } from "./is-changeset.ts";
-import { isChangesetsV2Range } from "./is-changesets-v2-range.ts";
 
 interface PackageJSON extends ChangesetPackageJSON {
   workspaces?: ReadonlyArray<string> | { packages: ReadonlyArray<string> };
@@ -29,6 +29,20 @@ type ToolType = Packages["tool"]["type"];
 
 /** Expected validation failures that should be surfaced in the PR comment. */
 export class UserValidationError extends Error {}
+
+const changesetsV2Range = ">=2.0.0 <3.0.0";
+
+function isChangesetsV2Range(declaredVersion: string | undefined) {
+  if (declaredVersion === undefined) {
+    return false;
+  }
+
+  try {
+    return subset(declaredVersion, changesetsV2Range);
+  } catch {
+    return false;
+  }
+}
 
 function getReleasePlanConfig(
   rawConfig: WrittenConfig & { prettier?: unknown },
@@ -64,11 +78,13 @@ function getReleasePlanConfig(
       "The `privatePackages` option can only be `false` or an object when using Changesets v2.",
     );
   }
+  // Changesets v2 defaulted an omitted `version` to `true` even inside the object form.
+  // Only adapt that valid shape; invalid values must pass through to `validateConfig`.
   if (
     typeof privatePackages === "object" &&
     privatePackages !== null &&
     !Array.isArray(privatePackages) &&
-    privatePackages.version === undefined
+    !("version" in privatePackages)
   ) {
     return {
       ...releasePlanConfig,
@@ -288,15 +304,14 @@ export const getChangedPackages = async ({
     await preStatePromise,
   );
 
-  const containsChangedFile = (pkg: Package) =>
-    changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`));
-
   // A root-only project has a single package covering the whole repository,
   // so there is no directory to narrow the changed files down to.
   const changedPackages =
     packages.tool.type === "root"
       ? packages.packages
-      : packages.packages.filter(containsChangedFile);
+      : packages.packages.filter((pkg) =>
+          changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`)),
+        );
 
   return {
     changedPackages: changedPackages.map((pkg) => pkg.packageJson.name),
