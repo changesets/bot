@@ -13,8 +13,8 @@ import type {
 import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import type { ProbotOctokit } from "probot";
-import { subset, validRange } from "semver";
 import { isChangeset } from "./is-changeset.ts";
+import { isChangesetsV2Range } from "./is-changesets-v2-range.ts";
 
 interface PackageJSON extends ChangesetPackageJSON {
   workspaces?: ReadonlyArray<string> | { packages: ReadonlyArray<string> };
@@ -30,23 +30,9 @@ type ToolType = Packages["tool"]["type"];
 /** Expected validation failures that should be surfaced in the PR comment. */
 export class UserValidationError extends Error {}
 
-const changesetsV2Range = ">=2.0.0 <3.0.0";
-
-function usesChangesetsV2(packageJson: PackageJSON) {
-  const declaredVersion =
-    packageJson.devDependencies?.["@changesets/cli"] ??
-    packageJson.dependencies?.["@changesets/cli"];
-  if (declaredVersion === undefined) {
-    return false;
-  }
-
-  const range = validRange(declaredVersion);
-  return range !== null && subset(range, changesetsV2Range);
-}
-
 function getReleasePlanConfig(
   rawConfig: WrittenConfig & { prettier?: unknown },
-  useChangesetsV2Defaults: boolean,
+  rootPackageJsonContent: PackageJSON,
 ): WrittenConfig {
   // The bot only calculates a release plan, so options used exclusively for formatting,
   // writing files, Git comparisons, publishing, and snapshots are intentionally ignored.
@@ -62,7 +48,10 @@ function getReleasePlanConfig(
     ...releasePlanConfig
   } = rawConfig;
 
-  if (!useChangesetsV2Defaults) {
+  const declaredChangesetsVersion =
+    rootPackageJsonContent.devDependencies?.["@changesets/cli"] ??
+    rootPackageJsonContent.dependencies?.["@changesets/cli"];
+  if (!isChangesetsV2Range(declaredChangesetsVersion)) {
     return releasePlanConfig;
   }
 
@@ -281,13 +270,9 @@ export const getChangedPackages = async ({
   const rawConfig = await rawConfigPromise;
 
   const configResult = validateConfig(
-    getReleasePlanConfig(rawConfig, usesChangesetsV2(rootPackageJsonContent)),
+    getReleasePlanConfig(rawConfig, rootPackageJsonContent),
     packages,
   );
-
-  for (const warning of configResult.warnings) {
-    console.warn(warning);
-  }
 
   if (configResult.errors) {
     throw new UserValidationError(
