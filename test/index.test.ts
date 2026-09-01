@@ -812,6 +812,160 @@ add feature
     `);
   });
 
+  it("shows release details for private packages when the config doesn't opt in", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+          devDependencies: { "@changesets/cli": "^2.29.0" },
+        }),
+        ".changeset/abc123.md": [
+          {
+            status: "added",
+          },
+          `---
+"pkg-private": patch
+---
+
+add feature
+`,
+        ],
+        "packages/private/package.json": JSON.stringify({
+          name: "pkg-private",
+          version: "1.0.0",
+          private: true,
+        }),
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "### 🦋 Changeset detected
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      **The changes in this PR will be included in the next version bump.**
+
+      <details><summary>This PR includes changesets to release 1 package</summary>
+
+        | Name        | Type  |
+      | ----------- | ----- |
+      | pkg-private | Patch |
+
+      </details>
+
+      Not sure what this means? [Click here to learn what changesets are](https://changesets.dev/faq).
+
+      [Click here if you're a maintainer who wants to add another changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%0A---%0A%0Athing%0A)
+
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
+  });
+
+  it("reports changesets config validation errors in the comment", async ({ expect, task }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({ ignore: "pkg-a" }),
+        "package.json": JSON.stringify({
+          name: "root-package",
+        }),
+        "src/index.ts": [{ status: "added" }, "export {};"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+
+    expect(commentRequests).toMatchInlineSnapshot(`
+      [
+        {
+          "body": {
+            "body": "### ⚠️ No Changeset found
+
+      Latest commit: c4d7edfd758bd44f7d4264fb55f6033f56d79540
+
+      Merging this PR will not cause a version bump for any packages. If these changes should not result in a new version, you're good to go. **If these changes should result in a version bump, you need to add a changeset.**
+
+
+
+      [Click here to learn what changesets are, and how to add one](https://changesets.dev/faq).
+
+      [Click here if you're a maintainer who wants to add a changeset to this PR](https://github.com/changesets/bot/new/test?filename=.changeset/<CHANGESET_FILE>.md&value=---%0A%22%40fake-scope%2Ffake-pkg%22%3A%20patch%0A---%0A%0Athing%0A)
+
+      <details><summary>💥 An error occurred when fetching the changed packages and changesets in this PR</summary>
+
+      \`\`\`
+      Some errors occurred when validating the changesets config:
+      ignore: Invalid type: Expected Array but received "pkg-a"
+      \`\`\`
+
+      </details>
+      ",
+          },
+          "method": "POST",
+          "path": "/repos/changesets/bot/issues/2/comments",
+        },
+      ]
+    `);
+  });
+
+  it("reports malformed changeset errors in the comment", async ({ expect, task }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        ".changeset/malformed.md": [{ status: "added" }, "not a valid changeset"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+
+    assert.equal(commentRequests.length, 1);
+    const commentBody = commentRequests[0].body;
+    assert.ok(
+      commentBody &&
+        typeof commentBody === "object" &&
+        "body" in commentBody &&
+        typeof commentBody.body === "string",
+    );
+    expect(commentBody.body).toContain(
+      "could not parse changeset - missing or invalid frontmatter.",
+    );
+  });
+
   it("shouldn't add a comment to a release pull request", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {

@@ -1,17 +1,19 @@
 import nodePath from "path";
-import assembleReleasePlan from "@changesets/assemble-release-plan";
-import { parse as parseConfig } from "@changesets/config";
-import parseChangeset from "@changesets/parse";
+import { assembleReleasePlan } from "@changesets/assemble-release-plan";
+import { validateConfig } from "@changesets/config";
+import { parseChangesetFile } from "@changesets/parse";
 import type {
   NewChangeset,
+  Package,
+  Packages,
   PreState,
   WrittenConfig,
   PackageJSON as ChangesetPackageJSON,
 } from "@changesets/types";
-import type { Packages, Tool } from "@manypkg/get-packages";
 import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import type { ProbotOctokit } from "probot";
+import subset from "semver/ranges/subset.js";
 import { isChangeset } from "./is-changeset.ts";
 
 interface PackageJSON extends ChangesetPackageJSON {
@@ -21,6 +23,75 @@ interface PackageJSON extends ChangesetPackageJSON {
 
 interface PnpmWorkspace {
   packages: ReadonlyArray<string>;
+}
+
+type ToolType = Packages["tool"]["type"];
+
+/** Expected validation failures that should be surfaced in the PR comment. */
+export class UserValidationError extends Error {}
+
+const changesetsV2Range = ">=2.0.0 <3.0.0";
+
+function isChangesetsV2Range(declaredVersion: string | undefined) {
+  if (declaredVersion === undefined) {
+    return false;
+  }
+
+  try {
+    return subset(declaredVersion, changesetsV2Range);
+  } catch {
+    return false;
+  }
+}
+
+function getReleasePlanConfig(
+  rawConfig: WrittenConfig & { prettier?: unknown },
+  rootPackageJsonContent: PackageJSON,
+): WrittenConfig {
+  // The bot only calculates a release plan, so options used exclusively for formatting,
+  // writing files, Git comparisons, publishing, and snapshots are intentionally ignored.
+  const {
+    access: _access,
+    baseBranch: _baseBranch,
+    changedFilePatterns: _changedFilePatterns,
+    changelog: _changelog,
+    commit: _commit,
+    format: _format,
+    prettier: _prettier,
+    snapshot: _snapshot,
+    ...releasePlanConfig
+  } = rawConfig;
+
+  const declaredChangesetsVersion =
+    rootPackageJsonContent.devDependencies?.["@changesets/cli"] ??
+    rootPackageJsonContent.dependencies?.["@changesets/cli"];
+  if (!isChangesetsV2Range(declaredChangesetsVersion)) {
+    return releasePlanConfig;
+  }
+
+  const privatePackages = rawConfig.privatePackages;
+  if (!("privatePackages" in rawConfig)) {
+    return { ...releasePlanConfig, privatePackages: { version: true } };
+  }
+  if (privatePackages === true) {
+    throw new UserValidationError(
+      "The `privatePackages` option can only be `false` or an object when using Changesets v2.",
+    );
+  }
+  // Changesets v2 defaulted an omitted `version` to `true` even inside the object form.
+  // Only adapt that valid shape; invalid values must pass through to `validateConfig`.
+  if (
+    typeof privatePackages === "object" &&
+    privatePackages !== null &&
+    !Array.isArray(privatePackages) &&
+    !("version" in privatePackages)
+  ) {
+    return {
+      ...releasePlanConfig,
+      privatePackages: { version: true, ...privatePackages },
+    };
+  }
+  return releasePlanConfig;
 }
 
 // TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
@@ -126,16 +197,24 @@ export const getChangedPackages = async ({
       const id = res[1];
 
       changesetPromises.push(
-        fetchTextFile(item.path).then((text) => ({
-          ...parseChangeset(text),
-          id,
-        })),
+        fetchTextFile(item.path).then((text) => {
+          try {
+            return {
+              ...parseChangesetFile(text),
+              id,
+            };
+          } catch (error) {
+            throw new UserValidationError(Error.isError(error) ? error.message : String(error), {
+              cause: error,
+            });
+          }
+        }),
       );
     }
   }
   let tool:
     | {
-        tool: Tool;
+        type: ToolType;
         globs: ReadonlyArray<string>;
       }
     | undefined;
@@ -146,7 +225,7 @@ export const getChangedPackages = async ({
 
     if (pnpmWorkspace.packages) {
       tool = {
-        tool: "pnpm",
+        type: "pnpm",
         globs: pnpmWorkspace.packages,
       };
     }
@@ -156,18 +235,18 @@ export const getChangedPackages = async ({
     if (rootPackageJsonContent.workspaces) {
       if (isArray(rootPackageJsonContent.workspaces)) {
         tool = {
-          tool: "yarn",
+          type: "yarn",
           globs: rootPackageJsonContent.workspaces,
         };
       } else {
         tool = {
-          tool: "yarn",
+          type: "yarn",
           globs: rootPackageJsonContent.workspaces.packages,
         };
       }
     } else if (rootPackageJsonContent.bolt && rootPackageJsonContent.bolt.workspaces) {
       tool = {
-        tool: "bolt",
+        type: "bolt",
         globs: rootPackageJsonContent.bolt.workspaces,
       };
     }
@@ -175,12 +254,15 @@ export const getChangedPackages = async ({
 
   const rootPackageJsonContent = await rootPackageJsonContentsPromise;
 
+  const rootPackage: Package = {
+    dir: "/",
+    packageJson: rootPackageJsonContent,
+  };
+
   const packages: Packages = {
-    root: {
-      dir: "/",
-      packageJson: rootPackageJsonContent,
-    },
-    tool: tool ? tool.tool : "root",
+    rootDir: "/",
+    rootPackage,
+    tool: { type: tool ? tool.type : "root" },
     packages: [],
   };
 
@@ -195,26 +277,44 @@ export const getChangedPackages = async ({
 
     packages.packages = await Promise.all(matches.map((dir) => getPackage(dir)));
   } else {
-    packages.packages.push(packages.root);
+    packages.packages.push(rootPackage);
   }
   if (hasErrored) {
     throw new Error("an error occurred when fetching files");
   }
 
+  const rawConfig = await rawConfigPromise;
+
+  const configResult = validateConfig(
+    getReleasePlanConfig(rawConfig, rootPackageJsonContent),
+    packages,
+  );
+
+  if (configResult.errors) {
+    throw new UserValidationError(
+      "Some errors occurred when validating the changesets config:\n" +
+        configResult.errors.join("\n"),
+    );
+  }
+
   const releasePlan = assembleReleasePlan(
     await Promise.all(changesetPromises),
     packages,
-    parseConfig(await rawConfigPromise, packages),
+    configResult.config,
     await preStatePromise,
   );
 
-  return {
-    changedPackages: (packages.tool === "root"
+  // A root-only project has a single package covering the whole repository,
+  // so there is no directory to narrow the changed files down to.
+  const changedPackages =
+    packages.tool.type === "root"
       ? packages.packages
       : packages.packages.filter((pkg) =>
           changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`)),
-        )
-    ).map((pkg) => pkg.packageJson.name),
+        );
+
+  return {
+    changedPackages: changedPackages.map((pkg) => pkg.packageJson.name),
     releasePlan,
   };
 };
