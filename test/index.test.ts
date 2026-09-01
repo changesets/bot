@@ -835,11 +835,7 @@ thing
         ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "test",
-          workspaces: [
-            "packages/**",
-            "!packages/private/**",
-            "packages/private/special",
-          ],
+          workspaces: ["packages/**", "!packages/private/**", "packages/private/special"],
         }),
         "packages/private/special/package.json": JSON.stringify({
           name: "pkg-private-special",

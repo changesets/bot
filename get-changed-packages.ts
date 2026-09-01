@@ -128,9 +128,25 @@ function matchGlobs(
   globs: ReadonlyArray<string>,
   { cwd }: { cwd: string },
 ): Array<string> {
+  const matchPatterns: Array<string> = [];
+  const ignorePatterns: Array<string> = ["**/node_modules", "**/node_modules/**"];
+
+  for (const glob of globs) {
+    if (!glob) continue;
+
+    if (glob[0] !== "!" || glob[1] === "(") {
+      matchPatterns.push(glob);
+    } else if (glob[1] !== "!" || glob[2] === "(") {
+      ignorePatterns.push(glob.slice(1));
+    }
+  }
+
+  const matches = picomatch(matchPatterns);
+  const ignores = picomatch(ignorePatterns);
+
   return paths.filter((path) => {
     const relativePath = nodePath.posix.relative(cwd, path) || ".";
-    return globMatchSome([relativePath], globs);
+    return matches(relativePath) && !ignores(relativePath);
   });
 }
 
