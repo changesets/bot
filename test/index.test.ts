@@ -828,6 +828,41 @@ thing
     expect(serializedRequests).not.toContain("%22pkg-a%22%3A");
   });
 
+  it("does not reinclude workspaces excluded by negative patterns", async ({ expect, task }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({}),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: [
+            "packages/**",
+            "!packages/private/**",
+            "packages/private/special",
+          ],
+        }),
+        "packages/private/special/package.json": JSON.stringify({
+          name: "pkg-private-special",
+        }),
+        "packages/private/special/src/index.ts": [
+          { status: "added" },
+          "export const special = true;",
+        ],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+    const serializedRequests = JSON.stringify(commentRequests);
+
+    expect(serializedRequests).not.toContain("%22pkg-private-special%22");
+  });
+
   it("shows release details when a changed changeset parses into a release plan", async ({
     expect,
     task,
