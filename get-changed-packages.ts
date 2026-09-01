@@ -70,7 +70,7 @@ function getReleasePlanConfig(
   }
 
   const privatePackages = rawConfig.privatePackages;
-  if (privatePackages === undefined) {
+  if (!("privatePackages" in rawConfig)) {
     return { ...releasePlanConfig, privatePackages: { version: true } };
   }
   if (privatePackages === true) {
