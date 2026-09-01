@@ -747,6 +747,118 @@ thing
     `);
   });
 
+  it("respects changedFilePatterns when building the add-changeset link", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({
+          changedFilePatterns: ["src/**", "!src/generated/**"],
+        }),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+        }),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+        }),
+        "packages/a/README.md": [{ status: "added" }, "# pkg-a"],
+        "packages/b/package.json": JSON.stringify({
+          name: "pkg-b",
+        }),
+        "packages/b/src/index.ts": [{ status: "added" }, "export const b = true;"],
+        "packages/c/package.json": JSON.stringify({
+          name: "pkg-c",
+        }),
+        "packages/c/src/generated/index.ts": [
+          { status: "added" },
+          "export const generated = true;",
+        ],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+    const serializedRequests = JSON.stringify(commentRequests);
+
+    expect(serializedRequests).toContain("%22pkg-b%22");
+    expect(serializedRequests).not.toContain("%22pkg-a%22");
+    expect(serializedRequests).not.toContain("%22pkg-c%22");
+  });
+
+  it("attributes changed files to the deepest matching workspace package", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({}),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*", "packages/*/nested"],
+        }),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+        }),
+        "packages/a/nested/package.json": JSON.stringify({
+          name: "pkg-a-nested",
+        }),
+        "packages/a/nested/src/index.ts": [{ status: "added" }, "export const nested = true;"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+    const serializedRequests = JSON.stringify(commentRequests);
+
+    expect(serializedRequests).toContain("%22pkg-a-nested%22");
+    expect(serializedRequests).not.toContain("%22pkg-a%22%3A");
+  });
+
+  it("does not reinclude workspaces excluded by negative patterns", async ({ expect, task }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({}),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/**", "!packages/private/**", "packages/private/special"],
+        }),
+        "packages/private/special/package.json": JSON.stringify({
+          name: "pkg-private-special",
+        }),
+        "packages/private/special/src/index.ts": [
+          { status: "added" },
+          "export const special = true;",
+        ],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+    const serializedRequests = JSON.stringify(commentRequests);
+
+    expect(serializedRequests).not.toContain("%22pkg-private-special%22");
+  });
+
   it("shows release details when a changed changeset parses into a release plan", async ({
     expect,
     task,
@@ -812,10 +924,7 @@ add feature
     `);
   });
 
-  it("shows release details for private packages when the config doesn't opt in", async ({
-    expect,
-    task,
-  }) => {
+  it("uses the Changesets v2 default for private packages", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
@@ -881,6 +990,56 @@ add feature
         },
       ]
     `);
+  });
+
+  it("excludes private dependent releases with Changesets v3 defaults", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+          devDependencies: { "@changesets/cli": "^3.0.0" },
+        }),
+        ".changeset/abc123.md": [
+          {
+            status: "added",
+          },
+          `---
+"pkg-public": patch
+---
+
+add feature
+`,
+        ],
+        "packages/public/package.json": JSON.stringify({
+          name: "pkg-public",
+          version: "1.0.0",
+        }),
+        "packages/private/package.json": JSON.stringify({
+          name: "pkg-private",
+          version: "1.0.0",
+          private: true,
+          dependencies: { "pkg-public": "workspace:*" },
+        }),
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+    const serializedRequests = JSON.stringify(commentRequests);
+
+    expect(serializedRequests).toContain("pkg-public");
+    expect(serializedRequests).not.toContain("pkg-private");
   });
 
   it("reports changesets config validation errors in the comment", async ({ expect, task }) => {

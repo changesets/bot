@@ -31,7 +31,7 @@
       },
     ],
 
-    "vitest/no-conditional-in-test": "off",
+    "eslint-plugin-import/max-dependencies": "off",
     "jest/no-conditional-in-test": "off",
 
     "typescript/array-type": ["error", { "default": "generic", "readonly": "generic" }],
@@ -39,12 +39,16 @@
     "typescript/consistent-type-imports": "error",
     "typescript/explicit-function-return-type": "off",
     "typescript/explicit-module-boundary-types": "off",
-    "typescript/no-unsafe-type-assertion": "off",
     "typescript/no-unsafe-function-type": "error",
+    "typescript/no-unsafe-type-assertion": "off",
     "typescript/no-wrapper-object-types": "error",
     "typescript/prefer-readonly-parameter-types": "off",
     "typescript/return-await": "off",
     "typescript/strict-boolean-expressions": "off",
+
+    "unicorn/no-array-callback-reference": "off",
+
+    "vitest/no-conditional-in-test": "off",
   },
   "env": {
     "builtin": true,

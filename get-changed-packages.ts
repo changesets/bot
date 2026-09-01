@@ -11,10 +11,11 @@ import type {
   PackageJSON as ChangesetPackageJSON,
 } from "@changesets/types";
 import jsYaml from "js-yaml";
-import micromatch from "micromatch";
+import picomatch from "picomatch";
 import type { ProbotOctokit } from "probot";
 import subset from "semver/ranges/subset.js";
 import { isChangeset } from "./is-changeset.ts";
+import { matchGlobs } from "./match-globs.ts";
 
 interface PackageJSON extends ChangesetPackageJSON {
   workspaces?: ReadonlyArray<string> | { packages: ReadonlyArray<string> };
@@ -53,7 +54,6 @@ function getReleasePlanConfig(
   const {
     access: _access,
     baseBranch: _baseBranch,
-    changedFilePatterns: _changedFilePatterns,
     changelog: _changelog,
     commit: _commit,
     format: _format,
@@ -94,6 +94,8 @@ function getReleasePlanConfig(
   return releasePlanConfig;
 }
 
+const REPO_ROOT = "/repo";
+
 // TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
 // related thread: github.com/microsoft/TypeScript/issues/36554
 function isArray<T>(
@@ -104,6 +106,46 @@ function isArray<T>(
     : ReadonlyArray<any>
   : Array<any> {
   return Array.isArray(arg);
+}
+
+function normalizeRepoPath(path: string): string {
+  if (path === "." || path === "" || path === "/") {
+    return REPO_ROOT;
+  }
+
+  if (path === REPO_ROOT || path.startsWith(`${REPO_ROOT}/`)) {
+    return path;
+  }
+
+  return path.startsWith("/") ? `${REPO_ROOT}${path}` : `${REPO_ROOT}/${path}`;
+}
+
+function isSubdir(pkgDir: string, file: string): boolean {
+  return file === pkgDir || file.startsWith(`${pkgDir}/`);
+}
+
+// Mirrors https://github.com/changesets/changesets/blob/5eeb0125f2766b9458aa1725900430b27b24116e/packages/git/src/index.ts#L346-L374
+function globMatchSome(paths: ReadonlyArray<string>, patterns?: ReadonlyArray<string>): boolean {
+  if (!patterns) return paths.length > 0;
+
+  const matchers = patterns.map((pattern) => picomatch(pattern, undefined, true));
+  return paths.some((path) => {
+    if (path.includes("\\")) {
+      path = path.replaceAll("\\", "/");
+    }
+
+    let passed = false;
+    for (const matcher of matchers) {
+      if (!passed) {
+        if (!matcher.state.negated && matcher(path)) {
+          passed = true;
+        }
+      } else if (matcher.state.negated && !matcher(path)) {
+        passed = false;
+      }
+    }
+    return passed;
+  });
 }
 
 export const getChangedPackages = async ({
@@ -125,7 +167,9 @@ export const getChangedPackages = async ({
   const encodedCredentials = Buffer.from(`x-access-token:${installationToken}`).toString("base64");
 
   function fetchFile(path: string) {
-    return fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`, {
+    const repoRelativePath = path.replace(new RegExp(`^${REPO_ROOT}/?`), "");
+
+    return fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${repoRelativePath}`, {
       headers: {
         Authorization: `Basic ${encodedCredentials}`,
       },
@@ -155,15 +199,19 @@ export const getChangedPackages = async ({
   }
 
   async function getPackage(pkgPath: string): Promise<{ dir: string; packageJson: PackageJSON }> {
-    const jsonContent = await fetchJsonFile(pkgPath + "/package.json");
+    const jsonContent = await fetchJsonFile(nodePath.posix.join(pkgPath, "package.json"));
     return {
       dir: pkgPath,
       packageJson: jsonContent as PackageJSON,
     };
   }
 
-  const rootPackageJsonContentsPromise: Promise<PackageJSON> = fetchJsonFile("package.json");
-  const rawConfigPromise: Promise<WrittenConfig> = fetchJsonFile(".changeset/config.json");
+  const rootPackageJsonContentsPromise: Promise<PackageJSON> = fetchJsonFile(
+    nodePath.posix.join(REPO_ROOT, "package.json"),
+  );
+  const rawConfigPromise: Promise<WrittenConfig> = fetchJsonFile(
+    nodePath.posix.join(REPO_ROOT, ".changeset/config.json"),
+  );
 
   const tree = await octokit.git.getTree({
     owner,
@@ -176,20 +224,21 @@ export const getChangedPackages = async ({
   const changesetPromises: Array<Promise<NewChangeset>> = [];
   const potentialWorkspaceDirectories: Array<string> = [];
   let isPnpm = false;
-  const changedFiles = await changedFilesPromise;
+  const changedFiles = (await changedFilesPromise).map(normalizeRepoPath);
 
   for (const item of tree.data.tree) {
     if (!item.path) {
       continue;
     }
-    if (nodePath.basename(item.path) === "package.json") {
-      const dirPath = nodePath.dirname(item.path);
+    const itemPath = normalizeRepoPath(item.path);
+    if (nodePath.posix.basename(itemPath) === "package.json") {
+      const dirPath = normalizeRepoPath(nodePath.posix.dirname(itemPath));
       potentialWorkspaceDirectories.push(dirPath);
-    } else if (item.path === "pnpm-workspace.yaml") {
+    } else if (itemPath === `${REPO_ROOT}/pnpm-workspace.yaml`) {
       isPnpm = true;
-    } else if (item.path === ".changeset/pre.json") {
-      preStatePromise = fetchJsonFile(".changeset/pre.json");
-    } else if (changedFiles.includes(item.path) && isChangeset(item.path)) {
+    } else if (itemPath === `${REPO_ROOT}/.changeset/pre.json`) {
+      preStatePromise = fetchJsonFile(nodePath.posix.join(REPO_ROOT, ".changeset/pre.json"));
+    } else if (changedFiles.includes(itemPath) && isChangeset(item.path)) {
       const res = /\.changeset\/([^.]+)\.md/.exec(item.path);
       if (!res) {
         throw new Error("could not get name from changeset filename");
@@ -197,7 +246,7 @@ export const getChangedPackages = async ({
       const id = res[1];
 
       changesetPromises.push(
-        fetchTextFile(item.path).then((text) => {
+        fetchTextFile(itemPath).then((text) => {
           try {
             return {
               ...parseChangesetFile(text),
@@ -220,7 +269,9 @@ export const getChangedPackages = async ({
     | undefined;
 
   if (isPnpm) {
-    const pnpmWorkspaceContent = await fetchTextFile("pnpm-workspace.yaml");
+    const pnpmWorkspaceContent = await fetchTextFile(
+      nodePath.posix.join(REPO_ROOT, "pnpm-workspace.yaml"),
+    );
     const pnpmWorkspace = jsYaml.safeLoad(pnpmWorkspaceContent) as PnpmWorkspace;
 
     if (pnpmWorkspace.packages) {
@@ -255,12 +306,12 @@ export const getChangedPackages = async ({
   const rootPackageJsonContent = await rootPackageJsonContentsPromise;
 
   const rootPackage: Package = {
-    dir: "/",
+    dir: REPO_ROOT,
     packageJson: rootPackageJsonContent,
   };
 
   const packages: Packages = {
-    rootDir: "/",
+    rootDir: REPO_ROOT,
     rootPackage,
     tool: { type: tool ? tool.type : "root" },
     packages: [],
@@ -273,7 +324,7 @@ export const getChangedPackages = async ({
     ) {
       throw new Error("globs are not valid: " + JSON.stringify(tool.globs));
     }
-    const matches = micromatch(potentialWorkspaceDirectories, tool.globs);
+    const matches = matchGlobs(potentialWorkspaceDirectories, tool.globs, { cwd: REPO_ROOT });
 
     packages.packages = await Promise.all(matches.map((dir) => getPackage(dir)));
   } else {
@@ -297,6 +348,29 @@ export const getChangedPackages = async ({
     );
   }
 
+  // Mirrors https://github.com/changesets/changesets/blob/5eeb0125f2766b9458aa1725900430b27b24116e/packages/git/src/index.ts#L273-L304
+  const changedPackages = packages.packages
+    .toSorted((pkgA, pkgB) => pkgB.dir.length - pkgA.dir.length)
+    .filter((pkg) => {
+      const changedPackageFiles: Array<string> = [];
+
+      for (let i = changedFiles.length - 1; i >= 0; i--) {
+        const file = changedFiles[i];
+
+        if (isSubdir(pkg.dir, file)) {
+          changedFiles.splice(i, 1);
+          const relativeFile = file.slice(pkg.dir.length + 1);
+          changedPackageFiles.push(relativeFile);
+        }
+      }
+
+      return (
+        changedPackageFiles.length > 0 &&
+        globMatchSome(changedPackageFiles, configResult.config.changedFilePatterns)
+      );
+    })
+    .map((pkg) => pkg.packageJson.name);
+
   const releasePlan = assembleReleasePlan(
     await Promise.all(changesetPromises),
     packages,
@@ -304,17 +378,8 @@ export const getChangedPackages = async ({
     await preStatePromise,
   );
 
-  // A root-only project has a single package covering the whole repository,
-  // so there is no directory to narrow the changed files down to.
-  const changedPackages =
-    packages.tool.type === "root"
-      ? packages.packages
-      : packages.packages.filter((pkg) =>
-          changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`)),
-        );
-
   return {
-    changedPackages: changedPackages.map((pkg) => pkg.packageJson.name),
+    changedPackages,
     releasePlan,
   };
 };
