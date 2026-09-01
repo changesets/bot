@@ -129,7 +129,7 @@ function matchGlobs(
   { cwd }: { cwd: string },
 ): Array<string> {
   return paths.filter((path) => {
-    const relativePath = nodePath.relative(cwd, path) || ".";
+    const relativePath = nodePath.posix.relative(cwd, path) || ".";
     return globMatchSome([relativePath], globs);
   });
 }
@@ -241,8 +241,8 @@ export const getChangedPackages = async ({
       continue;
     }
     const itemPath = normalizeRepoPath(item.path);
-    if (nodePath.basename(itemPath) === "package.json") {
-      const dirPath = normalizeRepoPath(nodePath.dirname(itemPath));
+    if (nodePath.posix.basename(itemPath) === "package.json") {
+      const dirPath = normalizeRepoPath(nodePath.posix.dirname(itemPath));
       potentialWorkspaceDirectories.push(dirPath);
     } else if (itemPath === `${REPO_ROOT}/pnpm-workspace.yaml`) {
       isPnpm = true;
