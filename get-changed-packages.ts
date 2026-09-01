@@ -53,7 +53,6 @@ function getReleasePlanConfig(
   const {
     access: _access,
     baseBranch: _baseBranch,
-    changedFilePatterns: _changedFilePatterns,
     changelog: _changelog,
     commit: _commit,
     format: _format,
@@ -377,7 +376,7 @@ export const getChangedPackages = async ({
 
       return (
         changedPackageFiles.length > 0 &&
-        globMatchSome(changedPackageFiles, rawConfig.changedFilePatterns ?? ["**"])
+        globMatchSome(changedPackageFiles, configResult.config.changedFilePatterns)
       );
     })
     .map((pkg) => pkg.packageJson.name);
