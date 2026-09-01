@@ -924,10 +924,7 @@ add feature
     `);
   });
 
-  it("shows release details for private packages when the config doesn't opt in", async ({
-    expect,
-    task,
-  }) => {
+  it("uses the Changesets v2 default for private packages", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
@@ -993,6 +990,56 @@ add feature
         },
       ]
     `);
+  });
+
+  it("excludes private dependent releases with Changesets v3 defaults", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ...baseFiles,
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+          devDependencies: { "@changesets/cli": "^3.0.0" },
+        }),
+        ".changeset/abc123.md": [
+          {
+            status: "added",
+          },
+          `---
+"pkg-public": patch
+---
+
+add feature
+`,
+        ],
+        "packages/public/package.json": JSON.stringify({
+          name: "pkg-public",
+          version: "1.0.0",
+        }),
+        "packages/private/package.json": JSON.stringify({
+          name: "pkg-private",
+          version: "1.0.0",
+          private: true,
+          dependencies: { "pkg-public": "workspace:*" },
+        }),
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+    const serializedRequests = JSON.stringify(commentRequests);
+
+    expect(serializedRequests).toContain("pkg-public");
+    expect(serializedRequests).not.toContain("pkg-private");
   });
 
   it("reports changesets config validation errors in the comment", async ({ expect, task }) => {
