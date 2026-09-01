@@ -13,6 +13,7 @@ import type {
 import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import type { ProbotOctokit } from "probot";
+import { subset, validRange } from "semver";
 import { isChangeset } from "./is-changeset.ts";
 
 interface PackageJSON extends ChangesetPackageJSON {
@@ -28,6 +29,65 @@ type ToolType = Packages["tool"]["type"];
 
 /** Expected validation failures that should be surfaced in the PR comment. */
 export class UserValidationError extends Error {}
+
+const changesetsV2Range = ">=2.0.0 <3.0.0";
+
+function usesChangesetsV2(packageJson: PackageJSON) {
+  const declaredVersion =
+    packageJson.devDependencies?.["@changesets/cli"] ??
+    packageJson.dependencies?.["@changesets/cli"];
+  if (declaredVersion === undefined) {
+    return false;
+  }
+
+  const range = validRange(declaredVersion);
+  return range !== null && subset(range, changesetsV2Range);
+}
+
+function getReleasePlanConfig(
+  rawConfig: WrittenConfig & { prettier?: unknown },
+  useChangesetsV2Defaults: boolean,
+): WrittenConfig {
+  // The bot only calculates a release plan, so options used exclusively for formatting,
+  // writing files, Git comparisons, publishing, and snapshots are intentionally ignored.
+  const {
+    access: _access,
+    baseBranch: _baseBranch,
+    changedFilePatterns: _changedFilePatterns,
+    changelog: _changelog,
+    commit: _commit,
+    format: _format,
+    prettier: _prettier,
+    snapshot: _snapshot,
+    ...releasePlanConfig
+  } = rawConfig;
+
+  if (!useChangesetsV2Defaults) {
+    return releasePlanConfig;
+  }
+
+  const privatePackages = rawConfig.privatePackages;
+  if (privatePackages === undefined) {
+    return { ...releasePlanConfig, privatePackages: { version: true } };
+  }
+  if (privatePackages === true) {
+    throw new UserValidationError(
+      "The `privatePackages` option can only be `false` or an object when using Changesets v2.",
+    );
+  }
+  if (
+    typeof privatePackages === "object" &&
+    privatePackages !== null &&
+    !Array.isArray(privatePackages) &&
+    privatePackages.version === undefined
+  ) {
+    return {
+      ...releasePlanConfig,
+      privatePackages: { version: true, ...privatePackages },
+    };
+  }
+  return releasePlanConfig;
+}
 
 // TODO: it might be possible to remove this if improvements to `Array.isArray` ever land
 // related thread: github.com/microsoft/TypeScript/issues/36554
@@ -221,17 +281,7 @@ export const getChangedPackages = async ({
   const rawConfig = await rawConfigPromise;
 
   const configResult = validateConfig(
-    {
-      ...rawConfig,
-      // `@changesets/config@4` defaults `privatePackages.version` to `false`,
-      // while previous versions defaulted it to `true`.
-      // Repositories that don't opt in explicitly would silently stop seeing their private packages reported,
-      // so the previous default is restored here.
-      privatePackages:
-        typeof rawConfig.privatePackages === "object"
-          ? { version: true, ...rawConfig.privatePackages }
-          : (rawConfig.privatePackages ?? { version: true }),
-    },
+    getReleasePlanConfig(rawConfig, usesChangesetsV2(rootPackageJsonContent)),
     packages,
   );
 

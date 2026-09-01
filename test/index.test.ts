@@ -820,6 +820,11 @@ add feature
     const { requests } = usePrState(server, {
       files: {
         ...baseFiles,
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+          devDependencies: { "@changesets/cli": "^2.29.0" },
+        }),
         ".changeset/abc123.md": [
           {
             status: "added",
@@ -882,7 +887,7 @@ add feature
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
       files: {
-        ".changeset/config.json": JSON.stringify({ access: "kinda-public" }),
+        ".changeset/config.json": JSON.stringify({ ignore: "pkg-a" }),
         "package.json": JSON.stringify({
           name: "root-package",
         }),
@@ -918,7 +923,7 @@ add feature
 
       \`\`\`
       Some errors occurred when validating the changesets config:
-      access: Invalid type: Expected ("public" | "restricted") but received "kinda-public"
+      ignore: Invalid type: Expected Array but received "pkg-a"
       \`\`\`
 
       </details>
