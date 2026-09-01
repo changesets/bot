@@ -15,6 +15,7 @@ import picomatch from "picomatch";
 import type { ProbotOctokit } from "probot";
 import subset from "semver/ranges/subset.js";
 import { isChangeset } from "./is-changeset.ts";
+import { matchGlobs } from "./match-globs.ts";
 
 interface PackageJSON extends ChangesetPackageJSON {
   workspaces?: ReadonlyArray<string> | { packages: ReadonlyArray<string> };
@@ -121,33 +122,6 @@ function normalizeRepoPath(path: string): string {
 
 function isSubdir(pkgDir: string, file: string): boolean {
   return file === pkgDir || file.startsWith(`${pkgDir}/`);
-}
-
-function matchGlobs(
-  paths: ReadonlyArray<string>,
-  globs: ReadonlyArray<string>,
-  { cwd }: { cwd: string },
-): Array<string> {
-  const matchPatterns: Array<string> = [];
-  const ignorePatterns: Array<string> = ["**/node_modules", "**/node_modules/**"];
-
-  for (const glob of globs) {
-    if (!glob) continue;
-
-    if (glob[0] !== "!" || glob[1] === "(") {
-      matchPatterns.push(glob);
-    } else if (glob[1] !== "!" || glob[2] === "(") {
-      ignorePatterns.push(glob.slice(1));
-    }
-  }
-
-  const matches = picomatch(matchPatterns);
-  const ignores = picomatch(ignorePatterns);
-
-  return paths.filter((path) => {
-    const relativePath = nodePath.posix.relative(cwd, path) || ".";
-    return matches(relativePath) && !ignores(relativePath);
-  });
 }
 
 // Mirrors https://github.com/changesets/changesets/blob/5eeb0125f2766b9458aa1725900430b27b24116e/packages/git/src/index.ts#L346-L374
