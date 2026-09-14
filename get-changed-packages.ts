@@ -10,10 +10,10 @@ import type {
   WrittenConfig,
   PackageJSON as ChangesetPackageJSON,
 } from "@changesets/types";
-import jsYaml from "js-yaml";
 import micromatch from "micromatch";
 import type { ProbotOctokit } from "probot";
 import subset from "semver/ranges/subset.js";
+import * as yaml from "yaml";
 import { isChangeset } from "./is-changeset.ts";
 
 interface PackageJSON extends ChangesetPackageJSON {
@@ -221,7 +221,7 @@ export const getChangedPackages = async ({
 
   if (isPnpm) {
     const pnpmWorkspaceContent = await fetchTextFile("pnpm-workspace.yaml");
-    const pnpmWorkspace = jsYaml.safeLoad(pnpmWorkspaceContent) as PnpmWorkspace;
+    const pnpmWorkspace = yaml.parse(pnpmWorkspaceContent) as PnpmWorkspace;
 
     if (pnpmWorkspace.packages) {
       tool = {
