@@ -59,6 +59,14 @@ const normalizeCommentBody = (body: string) =>
     "filename=.changeset/<CHANGESET_FILE>.md",
   );
 
+function getCommentBody(requests: Array<RecordedRequest>) {
+  const commentRequests = requests.filter((request) => request.path.includes("/comments"));
+  assert.equal(commentRequests.length, 1);
+  const body = commentRequests[0].body;
+  assert.ok(body && typeof body === "object" && "body" in body && typeof body.body === "string");
+  return body.body;
+}
+
 type ChangedFile = [
   {
     status: "added";
@@ -412,6 +420,7 @@ describe.concurrent("changeset-bot", () => {
         ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "root-package",
+          version: "1.0.0",
         }),
         "src/index.ts": [{ status: "added" }, "export {};"],
       },
@@ -537,6 +546,7 @@ thing
         }),
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
+          version: "1.0.0",
         }),
         "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
         "packages/b/package.json": JSON.stringify({
@@ -599,6 +609,7 @@ thing
         }),
         "packages/ab/package.json": JSON.stringify({
           name: "pkg-ab",
+          version: "1.0.0",
         }),
         "packages/ab/index.ts": [{ status: "added" }, "export const ab = true;"],
       },
@@ -641,6 +652,141 @@ thing
     `);
   });
 
+  it("does not include private packages in the add-changeset link", async ({ expect, task }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({}),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+        }),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+          version: "1.0.0",
+        }),
+        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
+        "packages/private/package.json": JSON.stringify({
+          name: "pkg-private",
+          version: "1.0.0",
+          private: true,
+        }),
+        "packages/private/index.ts": [{ status: "added" }, "export const p = true;"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentBody = getCommentBody(requests);
+    expect(commentBody).toContain("%22pkg-a%22%3A%20patch");
+    expect(commentBody).not.toContain("pkg-private");
+  });
+
+  it("includes private packages in the add-changeset link when opted in", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({
+          privatePackages: { version: true },
+        }),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+        }),
+        "packages/private/package.json": JSON.stringify({
+          name: "pkg-private",
+          version: "1.0.0",
+          private: true,
+        }),
+        "packages/private/index.ts": [{ status: "added" }, "export const p = true;"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentBody = getCommentBody(requests);
+    expect(commentBody).toContain("%22pkg-private%22%3A%20patch");
+  });
+
+  it("does not include ignored packages in the add-changeset link", async ({ expect, task }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({ ignore: ["pkg-ignored"] }),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+        }),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+          version: "1.0.0",
+        }),
+        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
+        "packages/ignored/package.json": JSON.stringify({
+          name: "pkg-ignored",
+          version: "1.0.0",
+        }),
+        "packages/ignored/index.ts": [{ status: "added" }, "export const i = true;"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentBody = getCommentBody(requests);
+    expect(commentBody).toContain("%22pkg-a%22%3A%20patch");
+    expect(commentBody).not.toContain("pkg-ignored");
+  });
+
+  it("does not include packages without a version in the add-changeset link", async ({
+    expect,
+    task,
+  }) => {
+    const probot = setupProbot(task.id);
+    const { requests } = usePrState(server, {
+      files: {
+        ".changeset/config.json": JSON.stringify({}),
+        "package.json": JSON.stringify({
+          name: "test",
+          workspaces: ["packages/*"],
+        }),
+        "packages/a/package.json": JSON.stringify({
+          name: "pkg-a",
+          version: "1.0.0",
+        }),
+        "packages/a/index.ts": [{ status: "added" }, "export const a = true;"],
+        "packages/unversioned/package.json": JSON.stringify({
+          name: "pkg-unversioned",
+        }),
+        "packages/unversioned/index.ts": [{ status: "added" }, "export const u = true;"],
+      },
+      comments: [],
+    });
+
+    await probot.receive({
+      name: "pull_request",
+      payload: pullRequestOpen,
+    } as never);
+
+    const commentBody = getCommentBody(requests);
+    expect(commentBody).toContain("%22pkg-a%22%3A%20patch");
+    expect(commentBody).not.toContain("pkg-unversioned");
+  });
+
   it("detects pnpm workspaces when building the add-changeset link", async ({ expect, task }) => {
     const probot = setupProbot(task.id);
     const { requests } = usePrState(server, {
@@ -652,6 +798,7 @@ thing
         "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
         "packages/a/package.json": JSON.stringify({
           name: "pkg-a",
+          version: "1.0.0",
         }),
         "packages/a/file.ts": [{ status: "added" }, "export const a = true;"],
       },
@@ -704,6 +851,7 @@ thing
         ".changeset/config.json": JSON.stringify({}),
         "package.json": JSON.stringify({
           name: "root-package",
+          version: "1.0.0",
         }),
         "pnpm-workspace.yaml": "onlyBuiltDependencies:\n  - esbuild\n",
         "src/index.ts": [{ status: "added" }, "export {};"],

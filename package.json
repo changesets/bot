@@ -21,6 +21,7 @@
     "@changesets/assemble-release-plan": "^7.0.0",
     "@changesets/config": "^4.0.0",
     "@changesets/parse": "^1.0.0",
+    "@changesets/should-skip-package": "^1.0.0",
     "@changesets/types": "^7.0.0",
     "@octokit/webhooks": "^9.8.4",
     "@sentry/node": "^6.0.0",

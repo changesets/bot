@@ -1,7 +1,9 @@
+// oxlint-disable import/max-dependencies -- This module deliberately coordinates several Changesets packages.
 import nodePath from "path";
 import { assembleReleasePlan } from "@changesets/assemble-release-plan";
 import { validateConfig } from "@changesets/config";
 import { parseChangesetFile } from "@changesets/parse";
+import { shouldSkipPackage } from "@changesets/should-skip-package";
 import type {
   NewChangeset,
   Package,
@@ -306,12 +308,17 @@ export const getChangedPackages = async ({
 
   // A root-only project has a single package covering the whole repository,
   // so there is no directory to narrow the changed files down to.
-  const changedPackages =
-    packages.tool.type === "root"
-      ? packages.packages
-      : packages.packages.filter((pkg) =>
-          changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`)),
-        );
+  const changedPackages = packages.packages.filter(
+    (pkg) =>
+      (packages.tool.type === "root" ||
+        changedFiles.some((changedFile) => changedFile.startsWith(`${pkg.dir}/`))) &&
+      // Ignored and private (unless opted in) packages cannot be versioned, so
+      // they must not be suggested in the "add a changeset" link.
+      !shouldSkipPackage(pkg, {
+        ignore: configResult.config.ignore,
+        allowPrivatePackages: configResult.config.privatePackages.version,
+      }),
+  );
 
   return {
     changedPackages: changedPackages.map((pkg) => pkg.packageJson.name),
